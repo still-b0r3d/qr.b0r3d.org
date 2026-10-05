@@ -6,7 +6,8 @@ import {
   getFileFromDataTransferItemList
 } from '@/utils/clipboard'
 import { Html5Qrcode } from 'html5-qrcode'
-import { computed, onMounted, ref } from 'vue'
+import { describeScannedContent } from '@/utils/scannedContent'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import QRCodeCameraScanner from './QRCodeCameraScanner.vue'
 
@@ -18,97 +19,16 @@ const { t } = useI18n()
 
 // #region Core QR Code Data
 const capturedData = ref<string>('')
+// The symbology the text came from (e.g. "EAN13"), when the scanner says.
+const capturedFormat = ref<string | undefined>()
 const errorMessage = ref<string | null>(null)
 // #endregion Core QR Code Data
 
 // #region QR Code Type Detection
-const qrCodeType = computed(() => {
-  const data = capturedData.value
-
-  // URL detection (more comprehensive than just http)
-  if (
-    /^(https?:\/\/)?[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9](\.[a-zA-Z]{2,})+([/?#][^\s]*)?$/i.test(data)
-  ) {
-    return 'url'
-  }
-
-  // Email detection
-  if (
-    /^mailto:(.+)$/i.test(data) ||
-    /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(data)
-  ) {
-    return 'email'
-  }
-
-  // Phone number detection
-  if (/^tel:(.+)$/i.test(data) || /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/.test(data)) {
-    return 'tel'
-  }
-
-  // SMS detection
-  if (/^sms:(.+)$/i.test(data)) {
-    return 'sms'
-  }
-
-  // WiFi detection
-  if (/^WIFI:(.+)$/i.test(data)) {
-    return 'wifi'
-  }
-
-  // vCard detection
-  if (/^BEGIN:VCARD[\s\S]*END:VCARD$/i.test(data)) {
-    return 'vcard'
-  }
-
-  // Calendar event detection
-  if (/^BEGIN:VEVENT[\s\S]*END:VEVENT$/i.test(data)) {
-    return 'calendar'
-  }
-
-  // EPC QR (SEPA Credit Transfer / GiroCode) detection
-  if (/^BCD\r?\n/.test(data)) {
-    return 'epc'
-  }
-
-  // Geo location detection
-  if (/^geo:(.+)$/i.test(data)) {
-    return 'geo'
-  }
-
-  // Default to text
-  return 'text'
-})
-
-const formattedData = computed(() => {
-  const data = capturedData.value
-  const type = qrCodeType.value
-  const hasProtocol = data.startsWith('http://') || data.startsWith('https://')
-
-  switch (type) {
-    case 'url':
-      return hasProtocol ? data : `https://${data}`
-    case 'email':
-      return data.startsWith('mailto:') ? data : `mailto:${data}`
-    case 'tel':
-      return data.startsWith('tel:') ? data : `tel:${data}`
-    case 'sms':
-      return data.startsWith('sms:') ? data : `sms:${data}`
-    case 'wifi':
-      // Return as is for display purposes
-      return data
-    case 'vcard':
-    case 'calendar':
-    case 'geo':
-    case 'epc':
-      return data
-    default:
-      return data
-  }
-})
-
-const isActionable = computed(() => {
-  return ['url', 'email', 'tel', 'sms', 'geo'].includes(qrCodeType.value)
-})
+const scanned = computed(() => describeScannedContent(capturedData.value, capturedFormat.value))
+const qrCodeType = computed(() => scanned.value.kind)
+const formattedData = computed(() => scanned.value.href ?? capturedData.value)
+const isActionable = computed(() => Boolean(scanned.value.href))
 // #endregion QR Code Type Detection
 
 // #region UI Display Properties
@@ -118,6 +38,8 @@ const qrCodeTypeIcon = computed(() => {
       return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M17 7h-4v2h4c1.65 0 3 1.35 3 3s-1.35 3-3 3h-4v2h4c2.76 0 5-2.24 5-5s-2.24-5-5-5m-6 8H7c-1.65 0-3-1.35-3-3s1.35-3 3-3h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4zm-3-4h8v2H8z"/></svg>`
     case 'email':
       return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2m0 4l-8 5l-8-5V6l8 5l8-5z"/></svg>`
+    case 'product':
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M2 4h2v16H2zm3 0h1v16H5zm2 0h3v16H7zm4 0h1v16h-1zm3 0h2v16h-2zm3 0h1v16h-1zm2 0h3v16h-3z"/></svg>`
     case 'tel':
       return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24c1.12.37 2.33.57 3.57.57c.55 0 1 .45 1 1V20c0 .55-.45 1-1 1c-9.39 0-17-7.61-17-17c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1c0 1.25.2 2.45.57 3.57c.11.35.03.74-.25 1.02z"/></svg>`
     case 'sms':
@@ -137,30 +59,7 @@ const qrCodeTypeIcon = computed(() => {
   }
 })
 
-const typeLabel = computed(() => {
-  switch (qrCodeType.value) {
-    case 'url':
-      return t('URL')
-    case 'email':
-      return t('Email')
-    case 'tel':
-      return t('Phone Number')
-    case 'sms':
-      return t('SMS')
-    case 'wifi':
-      return t('WiFi')
-    case 'vcard':
-      return t('Contact Card')
-    case 'calendar':
-      return t('Calendar Event')
-    case 'geo':
-      return t('Location')
-    case 'epc':
-      return t('SEPA Payment')
-    default:
-      return t('Text')
-  }
-})
+const typeLabel = computed(() => t(scanned.value.label))
 
 // #endregion UI Display Properties
 
@@ -214,6 +113,9 @@ const pasteFromClipboard = async (event: ClipboardEvent | null) => {
 
 onMounted(() => {
   window.addEventListener('paste', pasteFromClipboard)
+})
+onUnmounted(() => {
+  window.removeEventListener('paste', pasteFromClipboard)
 })
 
 const onQRDetected = (data: string) => {
