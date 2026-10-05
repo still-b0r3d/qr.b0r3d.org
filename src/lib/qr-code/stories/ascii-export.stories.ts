@@ -5,7 +5,7 @@ import { buildMatrix, qrMatrixToText, type AsciiFormat } from '..'
 const AsciiPreview = defineComponent({
   name: 'AsciiPreview',
   props: {
-    data: { type: String, default: 'https://github.com/lyqht/mini-qr' },
+    data: { type: String, default: 'https://b0r3d.org' },
     format: { type: String as () => AsciiFormat, default: 'ascii' as AsciiFormat },
     quietZone: { type: Number, default: 2 }
   },
@@ -41,7 +41,7 @@ const meta: Meta<typeof AsciiPreview> = {
     },
     quietZone: { control: { type: 'number', min: 0, max: 6 } }
   },
-  args: { data: 'https://github.com/lyqht/mini-qr', quietZone: 2 }
+  args: { data: 'https://b0r3d.org', quietZone: 2 }
 }
 export default meta
 type Story = StoryObj<typeof AsciiPreview>

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/vue3'
 import QRPreview from './QRPreview.vue'
+import B0r3dCupLogo from '@/assets/presets/b0r3d-cup-logo.json'
 import type { QRCodeConfig } from '..'
 
 const meta: Meta<typeof QRPreview> = {
@@ -9,14 +10,14 @@ const meta: Meta<typeof QRPreview> = {
     data: { control: 'text' }
   },
   args: {
-    data: 'https://github.com/lyqht/mini-qr'
+    data: 'https://b0r3d.org'
   }
 }
 export default meta
 type Story = StoryObj<typeof QRPreview>
 
 const base = (overrides: Partial<QRCodeConfig['image']> & { href: string }): QRCodeConfig => ({
-  data: 'https://github.com/lyqht/mini-qr',
+  data: 'https://b0r3d.org',
   size: 240,
   errorCorrectionLevel: 'H',
   dots: { shape: 'extra-rounded', color: '#000' },
@@ -27,7 +28,7 @@ const base = (overrides: Partial<QRCodeConfig['image']> & { href: string }): QRC
 export const SvgLogoHidingBackground: Story = {
   args: {
     config: base({
-      href: 'https://api.iconify.design/logos:vue.svg',
+      href: B0r3dCupLogo.image,
       crossOrigin: 'anonymous'
     })
   }
@@ -36,7 +37,7 @@ export const SvgLogoHidingBackground: Story = {
 export const SvgLogoOverlayingDots: Story = {
   args: {
     config: base({
-      href: 'https://api.iconify.design/logos:vue.svg',
+      href: B0r3dCupLogo.image,
       crossOrigin: 'anonymous',
       hideBackgroundDots: false
     })
@@ -46,7 +47,7 @@ export const SvgLogoOverlayingDots: Story = {
 export const SmallerLogo: Story = {
   args: {
     config: base({
-      href: 'https://api.iconify.design/logos:vue.svg',
+      href: B0r3dCupLogo.image,
       crossOrigin: 'anonymous',
       sizeRatio: 0.18
     })

@@ -1769,7 +1769,7 @@ const updateDataFromModal = (newData: string) => {
 
           <div class="mt-2 hidden flex-wrap items-center justify-center gap-2 md:flex">
             <a
-              href="https://github.com/lyqht/mini-qr/discussions"
+              href="https://github.com/still-b0r3d/qr.b0r3d.org/issues"
               target="_blank"
               rel="noopener noreferrer"
               class="inline-flex items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-700 outline-none hover:bg-zinc-50 focus-visible:ring-1 focus-visible:ring-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
@@ -1791,7 +1791,7 @@ const updateDataFromModal = (newData: string) => {
               {{ t('Feedback') }}
             </a>
             <a
-              href="https://github.com/lyqht/mini-qr/issues/new?template=qr-lib-bug.yml"
+              href="https://github.com/still-b0r3d/qr.b0r3d.org/issues/new"
               target="_blank"
               rel="noopener noreferrer"
               class="inline-flex items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-700 outline-none hover:bg-zinc-50 focus-visible:ring-1 focus-visible:ring-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"

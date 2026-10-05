@@ -2,8 +2,7 @@ import type { Meta, StoryObj } from '@storybook/vue3'
 import QRPreview from './QRPreview.vue'
 import type { ECLevel, QRCodeConfig } from '..'
 
-const LONG_URL =
-  'https://github.com/lyqht/mini-qr?utm_source=storybook&utm_campaign=ec-level-comparison'
+const LONG_URL = 'https://b0r3d.org/?utm_source=storybook&utm_campaign=ec-level-comparison'
 
 const meta: Meta<typeof QRPreview> = {
   title: 'QR Lib / Error correction',

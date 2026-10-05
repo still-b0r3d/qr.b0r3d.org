@@ -1,7 +1,7 @@
 {
-  "name": "mini-qr",
+  "name": "qr-b0r3d-org",
   "private": true,
-  "version": "0.30.2",
+  "version": "1.0.0",
   "type": "module",
   "packageManager": "pnpm@10.0.0",
   "scripts": {
@@ -16,7 +16,6 @@
     "lint": "eslint . --fix",
     "format": "prettier --write",
     "postinstall": "husky install",
-    "generate-splash": "node scripts/generate-splash-screens.js",
     "generate-brand-assets": "node scripts/generate-brand-assets.mjs",
     "sync-i18n": "node scripts/sync-i18n.mjs",
     "translate:deepl": "node scripts/translate-deepl.mjs"
@@ -58,7 +57,6 @@
     "file-saver": "2.0.5",
     "html5-qrcode": "2.3.8",
     "jszip": "3.10.1",
-    "marked": "15.0.12",
     "qr-scanner": "1.4.2",
     "qrcode-generator": "2.0.4",
     "radix-vue": "1.9.17",

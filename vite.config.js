@@ -27,19 +27,13 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         base: base, // Make sure PWA respects the base path
-        includeAssets: [
-          'app_icons/web/favicon.ico',
-          'app_icons/web/splash-750x1334@2x.png',
-          'app_icons/web/splash-1170x2532@3x.png',
-          'app_icons/web/splash-1290x2796@3x.png',
-          'app_icons/web/splash-2048x2732@2x.png'
-        ],
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
         manifest: {
-          name: 'MiniQR',
-          short_name: 'MiniQR',
-          description: 'A minimal QR code generator and scanner',
-          theme_color: '#ffffff',
-          background_color: '#ffffff',
+          name: 'b0r3d QR',
+          short_name: 'b0r3d QR',
+          description: 'Static QR code generator and scanner. Codes never expire.',
+          theme_color: '#131313',
+          background_color: '#131313',
           display: 'standalone',
           orientation: 'portrait',
           start_url: base, // Use the base path as start URL
@@ -66,20 +60,6 @@ export default defineConfig(({ mode }) => {
               type: 'image/png',
               purpose: 'maskable'
             }
-          ],
-          screenshots: [
-            {
-              src: 'app_icons/web/screenshot-narrow.png',
-              sizes: '3510x7596',
-              type: 'image/png',
-              form_factor: 'narrow'
-            },
-            {
-              src: 'app_icons/web/screenshot-wide.png',
-              sizes: '7596x3510',
-              type: 'image/png',
-              form_factor: 'wide'
-            }
           ]
         },
         workbox: {
@@ -87,8 +67,10 @@ export default defineConfig(({ mode }) => {
           // self-hosted frame fonts are only fetched when someone picks one,
           // and are cached at that point by the 'fonts' rule below.
           globPatterns: ['**/*.{js,css,svg,png,jpg,jpeg,gif,ico}'],
-          // Exclude large files from precaching and HTML files to avoid base path issues
-          globIgnores: ['**/app_preview.*', '**/presets/*.svg', '**/*.html'],
+          // Exclude HTML files to avoid base path issues. iOS start-up images
+          // and the share preview image are only fetched by the OS or by
+          // link previews, never by the app itself.
+          globIgnores: ['**/app_icons/web/splash-*', 'og-image.png', '**/*.html'],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
           // Don't precache index.html to avoid base path issues
           dontCacheBustURLsMatching: /\.\w{8}\./,

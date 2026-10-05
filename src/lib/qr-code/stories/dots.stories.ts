@@ -13,7 +13,7 @@ const meta: Meta<typeof QRPreview> = {
     config: { control: 'object' }
   },
   args: {
-    data: 'https://github.com/lyqht/mini-qr'
+    data: 'https://b0r3d.org'
   }
 }
 export default meta
@@ -21,7 +21,7 @@ type Story = StoryObj<typeof QRPreview>
 
 function configFor(shape: DotShape, color = '#111111'): QRCodeConfig {
   return {
-    data: 'https://github.com/lyqht/mini-qr',
+    data: 'https://b0r3d.org',
     size: 240,
     dots: { shape, color },
     background: { color: '#ffffff' }

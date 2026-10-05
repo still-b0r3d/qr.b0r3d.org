@@ -3,20 +3,6 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/vue'
 import LanguageSelector from '@/components/LanguageSelector.vue'
 import { useI18n } from 'vue-i18n'
-import { marked } from 'marked'
-import { fetchWithBasePath } from '@/utils/basePath'
-import { useChangelogNotice } from '@/utils/useChangelogNotice'
-import { getDisplayVersion } from '@/utils/changelogVersion'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogClose
-} from '@/components/ui/dialog'
-import { X } from '@lucide/vue'
 
 defineProps<{
   isDarkMode: boolean
@@ -29,38 +15,9 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const { hasUnseenChangelog, markAsSeen } = useChangelogNotice()
 const isOpen = ref(false)
 const reference = ref<HTMLElement | null>(null)
 const floating = ref<HTMLElement | null>(null)
-
-const version = ref('...')
-const changelogContent = ref<string | null>(null)
-const isLoadingChangelog = ref(true)
-const hideCredits = ['1', 'true'].includes((import.meta.env.VITE_HIDE_CREDITS ?? '').toLowerCase())
-
-async function fetchAndProcessChangelog() {
-  if (changelogContent.value === null) {
-    isLoadingChangelog.value = true
-    try {
-      const response = await fetchWithBasePath('/CHANGELOG.md')
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      const markdown = await response.text()
-
-      version.value = getDisplayVersion(markdown, import.meta.env.VITE_APP_VERSION)
-
-      changelogContent.value = await marked.parse(markdown)
-    } catch (error) {
-      console.error('Failed to fetch or process changelog:', error)
-      version.value = t('Error')
-      changelogContent.value = `<p>${t('Failed to load changelog')}</p>`
-    } finally {
-      isLoadingChangelog.value = false
-    }
-  }
-}
 
 const { floatingStyles } = useFloating(reference, floating, {
   placement: 'bottom-end',
@@ -91,7 +48,6 @@ const handleClickOutside = (event: MouseEvent) => {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
-  fetchAndProcessChangelog()
 })
 
 onUnmounted(() => {
@@ -122,53 +78,10 @@ onUnmounted(() => {
       :style="floatingStyles"
       class="relative z-50 w-64 rounded-md border border-zinc-300 bg-white p-4 shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
     >
-      <Dialog>
-        <DialogTrigger as-child>
-          <button
-            class="secondary-button absolute end-4 top-4"
-            :aria-label="t('View changelog')"
-            :disabled="isLoadingChangelog"
-            @click="markAsSeen"
-          >
-            {{ isLoadingChangelog ? '...' : version }}
-            <span
-              v-if="hasUnseenChangelog"
-              class="absolute -right-1 -top-1 block size-2.5 rounded-full bg-[#abcbca] ring-2 ring-white dark:ring-zinc-800"
-              aria-hidden="true"
-            ></span>
-          </button>
-        </DialogTrigger>
-
-        <DialogContent
-          class="flex max-h-[80vh] w-[90vw] flex-col sm:max-w-md"
-          @open-auto-focus.prevent
-        >
-          <DialogHeader>
-            <DialogTitle>{{ t('Changelog') }}</DialogTitle>
-            <DialogClose
-              class="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
-            >
-              <X class="size-4" />
-              <span class="sr-only">{{ t('Close') }}</span>
-            </DialogClose>
-          </DialogHeader>
-
-          <div class="flex-1 overflow-y-auto pe-2">
-            <DialogDescription
-              as="div"
-              class="prose prose-sm max-w-none text-start dark:prose-invert prose-li:my-1"
-            >
-              <div v-if="isLoadingChangelog">Loading...</div>
-              <div v-else-if="changelogContent" v-html="changelogContent"></div>
-              <div v-else>{{ t('Failed to load changelog') }}</div>
-            </DialogDescription>
-          </div>
-        </DialogContent>
-      </Dialog>
       <div class="flex flex-col gap-4">
         <!-- App title -->
         <div class="flex items-center">
-          <h1 class="text-xl text-gray-700 dark:text-gray-100">MiniQR</h1>
+          <h1 class="text-xl text-gray-700 dark:text-gray-100">b0r3d QR</h1>
         </div>
 
         <!-- Dark mode toggle -->
@@ -232,10 +145,10 @@ onUnmounted(() => {
 
         <hr class="border-zinc-200 dark:border-zinc-700" />
 
-        <!-- General feedback / questions / ideas → GitHub Discussions. -->
+        <!-- Feedback and bug reports go to this project's issue tracker. -->
         <a
           class="flex items-center gap-2 rounded-md px-2 py-1.5 text-zinc-800 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700"
-          href="https://github.com/lyqht/mini-qr/discussions"
+          href="https://github.com/still-b0r3d/qr.b0r3d.org/issues"
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -256,10 +169,9 @@ onUnmounted(() => {
           <span>{{ t('Feedback') }}</span>
         </a>
 
-        <!-- Concrete bugs → structured issue form. -->
         <a
           class="flex items-center gap-2 rounded-md px-2 py-1.5 text-zinc-800 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700"
-          href="https://github.com/lyqht/mini-qr/issues/new?template=qr-lib-bug.yml"
+          href="https://github.com/still-b0r3d/qr.b0r3d.org/issues/new"
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -282,11 +194,12 @@ onUnmounted(() => {
           <span>{{ t('Report an issue') }}</span>
         </a>
 
-        <!-- GitHub repo -->
+        <!-- Source code -->
         <a
           class="flex items-center gap-2 rounded-md px-2 py-1.5 text-zinc-800 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700"
-          href="https://github.com/lyqht/mini-qr"
+          href="https://github.com/still-b0r3d/qr.b0r3d.org"
           target="_blank"
+          rel="noopener noreferrer"
           :aria-label="t('GitHub repository for this project')"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
@@ -297,35 +210,6 @@ onUnmounted(() => {
           </svg>
           <span>GitHub</span>
         </a>
-
-        <!-- Divider -->
-        <hr class="border-zinc-200 dark:border-zinc-700 md:hidden" />
-
-        <!-- Footer Section for Mobile (hidden on md and up) -->
-        <div
-          v-if="!hideCredits"
-          class="relative flex flex-col gap-2 text-sm text-zinc-600 dark:text-zinc-400 md:hidden"
-        >
-          <div class="flex items-center justify-between gap-1">
-            <span class="text-start">
-              {{ t('Created by') }}
-              <br />
-              <a
-                href="https://github.com/lyqht"
-                target="_blank"
-                class="text-zinc-900 hover:text-zinc-700 dark:text-zinc-100 dark:hover:text-zinc-300"
-                >Estee Tey 🐧🌻</a
-              >
-            </span>
-            <a
-              href="https://github.com/sponsors/lyqht?frequency=one-time&sponsor=lyqht"
-              target="_blank"
-              class="secondary-button"
-              :aria-label="t('Sponsor')"
-              >{{ t('Sponsor') }}</a
-            >
-          </div>
-        </div>
       </div>
     </div>
   </div>

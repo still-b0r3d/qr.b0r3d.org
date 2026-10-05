@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/vue3'
 import QRPreview from './QRPreview.vue'
+import B0r3dCupLogo from '@/assets/presets/b0r3d-cup-logo.json'
 import type { FrameConfig, QRCodeConfig, TextPosition } from '..'
 
 const meta: Meta<typeof QRPreview> = {
@@ -9,7 +10,7 @@ const meta: Meta<typeof QRPreview> = {
     data: { control: 'text' }
   },
   args: {
-    data: 'https://github.com/lyqht/mini-qr'
+    data: 'https://b0r3d.org'
   }
 }
 export default meta
@@ -17,7 +18,7 @@ type Story = StoryObj<typeof QRPreview>
 
 function make(textPosition: TextPosition, text = 'Scan me'): QRCodeConfig {
   return {
-    data: 'https://github.com/lyqht/mini-qr',
+    data: 'https://b0r3d.org',
     size: 220,
     dots: { shape: 'extra-rounded', color: '#0f8b4c' },
     cornerSquares: { shape: 'extra-rounded', color: '#0f8b4c' },
@@ -93,7 +94,7 @@ export const BackgroundImageWithLogo: Story = {
       ...makeWithBackgroundImage('bottom'),
       errorCorrectionLevel: 'H',
       image: {
-        href: 'https://api.iconify.design/logos:vue.svg',
+        href: B0r3dCupLogo.image,
         sizeRatio: 0.35,
         hideBackgroundDots: true
       }

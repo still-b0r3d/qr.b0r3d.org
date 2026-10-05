@@ -499,12 +499,12 @@ const fillWithExampleData = () => {
       textData.value = 'Have a wonderful day!'
       break
     case 'url':
-      urlData.value = 'https://github.com/lyqht/mini-qr'
+      urlData.value = 'https://b0r3d.org'
       break
     case 'email':
       emailAddress.value = 'test@example.com'
       emailSubject.value = 'QR Code Test'
-      emailBody.value = 'This is a test email from MiniQR!'
+      emailBody.value = 'This is a test email from b0r3d QR!'
       emailCc.value = 'cc@example.com'
       emailBcc.value = 'bcc@example.com'
       break
@@ -513,7 +513,7 @@ const fillWithExampleData = () => {
       break
     case 'sms':
       smsNumber.value = '+19876543210'
-      smsMessage.value = 'Hello from MiniQR!'
+      smsMessage.value = 'Hello from b0r3d QR!'
       break
     case 'wifi':
       wifiSSID.value = 'MyWiFiNetwork'
