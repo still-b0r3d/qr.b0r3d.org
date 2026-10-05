@@ -83,6 +83,9 @@ export default [
         setInterval: 'readonly',
         clearInterval: 'readonly',
         fetch: 'readonly',
+        AbortSignal: 'readonly',
+        atob: 'readonly',
+        btoa: 'readonly',
         // Node globals
         process: 'readonly',
         __dirname: 'readonly',

@@ -27,6 +27,7 @@ import DataChecks from '@/components/DataChecks.vue'
 import PrintSizeSettings from '@/components/PrintSizeSettings.vue'
 import { decodeQrImage, getScanWarnings } from '@/utils/scanCheck'
 import { getDataChecks } from '@/utils/linkChecks'
+import { fetchRemoteLogo, resolveLocalLogo, type LogoResult } from '@/utils/logoImage'
 import {
   checkPrintSettings,
   DEFAULT_PRINT_SETTINGS,
@@ -275,6 +276,37 @@ watch(
   { immediate: true }
 )
 const image = ref()
+// The logo the preview, scan check and exports actually use. A remote address
+// is fetched once and inlined, or left out if its site won't share it (see
+// utils/logoImage); `image` keeps what was typed, for the field and saving.
+const logo = ref<LogoResult>({ status: 'none' })
+let logoCheckTimer: ReturnType<typeof setTimeout> | undefined
+let logoCheckId = 0
+function setLogo(next: LogoResult) {
+  if (next.status !== logo.value.status || next.src !== logo.value.src) logo.value = next
+}
+// Sync, so the logo moves in step with `image` the way it did when `image`
+// fed the props directly. A late update during setup would otherwise make
+// the config watcher save the defaults over the stored config before
+// onMounted restores it.
+watch(
+  image,
+  (value) => {
+    clearTimeout(logoCheckTimer)
+    const id = ++logoCheckId
+    const local = resolveLocalLogo(value)
+    if (local) {
+      setLogo(local)
+      return
+    }
+    setLogo({ status: 'checking' })
+    logoCheckTimer = setTimeout(async () => {
+      const result = await fetchRemoteLogo(String(value).trim())
+      if (id === logoCheckId) setLogo(result)
+    }, 400)
+  },
+  { immediate: true, flush: 'sync' }
+)
 const width = ref()
 const height = ref()
 const margin = ref()
@@ -356,7 +388,7 @@ const qrOptions = computed(() => ({
 
 const qrCodeProps = computed<StyledQRCodeProps>(() => ({
   data: previewData.value,
-  image: image.value,
+  image: logo.value.src,
   width: width.value,
   height: height.value,
   margin: margin.value,
@@ -485,7 +517,7 @@ const recommendedErrorCorrectionLevel = computed<ErrorCorrectionLevel | null>(()
 // what actually gets encoded.
 const isErrorCorrectionBoostedForLogo = computed(
   () =>
-    Boolean(image.value) &&
+    Boolean(logo.value.src) &&
     (errorCorrectionLevel.value === 'L' || errorCorrectionLevel.value === 'M')
 )
 //#endregion
@@ -500,7 +532,7 @@ const encodedInfo = computed<EncodedInfo | null>(() => {
   const text = previewData.value
   if (!text) return null
   const ecLevel = resolveEffectiveErrorCorrectionLevel(
-    Boolean(image.value),
+    Boolean(logo.value.src),
     errorCorrectionLevel.value
   )
   try {
@@ -946,7 +978,8 @@ function buildImageExportInput() {
 //#region /* QR Config Utils - Saving, Loading and Downloading */
 function buildCurrentQRConfig(): QRCodeConfig {
   return serializeQRConfig(
-    qrCodeProps.value,
+    // Save the logo as entered, so a remote address is checked again on load.
+    { ...qrCodeProps.value, image: image.value },
     style.value,
     showFrame.value ? (frameSettings.value as QRCodeFrameConfig) : null
   )
@@ -1062,7 +1095,7 @@ function loadQrConfigFromFile() {
 }
 
 watch(
-  [qrCodeProps, style, showFrame, frameSettings],
+  [qrCodeProps, image, style, showFrame, frameSettings],
   () => {
     if (isLocalStorageEnabled()) {
       saveQRConfig(buildCurrentQRConfig())
@@ -2669,7 +2702,36 @@ const updateDataFromModal = (newData: string) => {
                   rows="1"
                   :placeholder="t('Logo image URL')"
                   v-model="image"
+                  aria-describedby="logo-status"
                 />
+                <p
+                  v-if="logo.status === 'checking'"
+                  id="logo-status"
+                  role="status"
+                  class="ms-1 mt-1 text-xs font-normal text-zinc-500 dark:text-zinc-400"
+                >
+                  {{ t('Loading the logo…') }}
+                </p>
+                <p
+                  v-else-if="logo.status === 'blocked'"
+                  id="logo-status"
+                  role="status"
+                  class="ms-1 mt-1 text-xs font-normal text-amber-700 dark:text-amber-300"
+                >
+                  {{
+                    t(
+                      "That site doesn't let other sites use its images in downloads, so the logo is left out. Save the image to your device, then use Upload image."
+                    )
+                  }}
+                </p>
+                <p
+                  v-else-if="logo.status === 'failed'"
+                  id="logo-status"
+                  role="status"
+                  class="ms-1 mt-1 text-xs font-normal text-amber-700 dark:text-amber-300"
+                >
+                  {{ t("Couldn't load an image from that address, so the logo is left out.") }}
+                </p>
               </div>
               <div
                 class="field-reveal flex flex-row items-center gap-2"
