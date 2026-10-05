@@ -21,6 +21,18 @@ import {
   DrawerTrigger
 } from '@/components/ui/drawer'
 import VCardPreview from '@/components/VCardPreview.vue'
+import ScanCheckPanel, { type ScanStatus } from '@/components/ScanCheckPanel.vue'
+import CodeInfoPanel, { type EncodedInfo } from '@/components/CodeInfoPanel.vue'
+import DataChecks from '@/components/DataChecks.vue'
+import PrintSizeSettings from '@/components/PrintSizeSettings.vue'
+import { decodeQrImage, getScanWarnings } from '@/utils/scanCheck'
+import { getDataChecks } from '@/utils/linkChecks'
+import {
+  checkPrintSettings,
+  DEFAULT_PRINT_SETTINGS,
+  printGuidance,
+  type PrintSettings
+} from '@/utils/printSize'
 import { IS_COPY_IMAGE_TO_CLIPBOARD_SUPPORTED } from '@/utils/clipboard'
 import { createRandomColor, getRandomItemInArray } from '@/utils/color'
 import {
@@ -30,6 +42,7 @@ import {
   downloadSvgElement,
   getInlinedSvgString,
   getJpgElement,
+  getPngBlob,
   getPngElement
 } from '@/utils/convertToImage'
 import { downloadBlob } from '@/utils/download'
@@ -82,6 +95,7 @@ import JSZip from 'jszip'
 import TextExportModal from '@/components/TextExportModal.vue'
 import {
   buildMatrix,
+  buildSvgExportString,
   MAX_QR_VERSION,
   resolveEffectiveErrorCorrectionLevel,
   type CornerDotType,
@@ -481,18 +495,31 @@ const isErrorCorrectionBoostedForLogo = computed(
 // batch the same size; data that doesn't fit grows to the next version up.
 const qrVersion = ref<number>(0)
 const QR_VERSIONS = Array.from({ length: MAX_QR_VERSION }, (_, i) => i + 1)
-const qrVersionInUse = computed<number | null>(() => {
-  if (!qrVersion.value || !previewData.value) return null
+// What actually goes into the previewed code: text, version, modes, EC.
+const encodedInfo = computed<EncodedInfo | null>(() => {
+  const text = previewData.value
+  if (!text) return null
+  const ecLevel = resolveEffectiveErrorCorrectionLevel(
+    Boolean(image.value),
+    errorCorrectionLevel.value
+  )
   try {
-    const ec = resolveEffectiveErrorCorrectionLevel(
-      Boolean(image.value),
-      errorCorrectionLevel.value
-    )
-    return buildMatrix(previewData.value, ec, qrVersion.value).version
+    const m = buildMatrix(text, ecLevel, qrVersion.value)
+    return {
+      text,
+      version: m.version,
+      count: m.count,
+      segments: m.segments,
+      ecLevel,
+      ecBoosted: ecLevel !== errorCorrectionLevel.value
+    }
   } catch {
     return null
   }
 })
+const qrVersionInUse = computed<number | null>(() =>
+  qrVersion.value ? (encodedInfo.value?.version ?? null) : null
+)
 const isQrVersionTooSmall = computed(
   () => qrVersionInUse.value !== null && qrVersionInUse.value > qrVersion.value
 )
@@ -899,7 +926,8 @@ function buildSvgExportInput() {
     borderRadius: exportBorderRadius.value,
     // SVG natural size: the QR's intrinsic dimensions. Frame chrome is added
     // by the lib's renderFramed primitive on top of this.
-    size: { width: width.value, height: height.value }
+    size: { width: width.value, height: height.value },
+    print: activePrint.value
   }
 }
 
@@ -1363,6 +1391,113 @@ async function generateBatchQRCodes(format: 'png' | 'svg' | 'jpg') {
 }
 // #endregion
 
+//#region /* Data checks */
+const dataChecks = computed(() => getDataChecks(data.value))
+//#endregion
+
+//#region /* Print size */
+const PRINT_SETTINGS_KEY = 'b0r3d-qr.print-settings'
+function loadPrintSettings(): PrintSettings {
+  if (!isLocalStorageEnabled()) return { ...DEFAULT_PRINT_SETTINGS }
+  try {
+    const saved = JSON.parse(localStorage.getItem(PRINT_SETTINGS_KEY) ?? 'null')
+    return saved && typeof saved === 'object'
+      ? { ...DEFAULT_PRINT_SETTINGS, ...saved }
+      : { ...DEFAULT_PRINT_SETTINGS }
+  } catch {
+    return { ...DEFAULT_PRINT_SETTINGS }
+  }
+}
+const printSettings = ref<PrintSettings>(loadPrintSettings())
+watch(
+  printSettings,
+  (value) => {
+    if (!isLocalStorageEnabled()) return
+    try {
+      localStorage.setItem(PRINT_SETTINGS_KEY, JSON.stringify(value))
+    } catch {
+      /* applies for this visit */
+    }
+  },
+  { deep: true }
+)
+const printProblem = computed(() =>
+  printSettings.value.enabled ? checkPrintSettings(printSettings.value) : null
+)
+const activePrint = computed(() =>
+  printSettings.value.enabled && !printProblem.value
+    ? {
+        width: printSettings.value.width,
+        unit: printSettings.value.unit,
+        dpi: printSettings.value.dpi
+      }
+    : undefined
+)
+const printInfo = computed(() => {
+  if (!activePrint.value || !encodedInfo.value) return null
+  const { print: _print, ...screenInput } = buildSvgExportInput()
+  const svg = buildSvgExportString(screenInput)
+  const box = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svg)
+  if (!box) return null
+  return printGuidance(
+    printSettings.value,
+    { width: Number(box[1]), height: Number(box[2]) },
+    Math.min(width.value, height.value),
+    encodedInfo.value.count,
+    Number(margin.value) || 0
+  )
+})
+//#endregion
+
+//#region /* Will it scan? */
+const scanWarnings = computed(() =>
+  getScanWarnings({
+    colors: [dotsOptionsColor.value, cornersSquareOptionsColor.value, cornersDotOptionsColor.value],
+    background: styleBackground.value,
+    frameBackground: frameStyle.value.backgroundColor,
+    margin: Number(margin.value) || 0,
+    hasFrame: showFrame.value
+  })
+)
+const scanStatus = ref<ScanStatus>('idle')
+const scanDecoded = ref<string | null>(null)
+let scanTimer: ReturnType<typeof setTimeout> | undefined
+let scanRun = 0
+
+// Renders the code exactly as a PNG download would and decodes it.
+async function runScanCheck() {
+  const run = ++scanRun
+  const expected = previewData.value
+  try {
+    const blob = await getPngBlob({ ...buildSvgExportInput(), print: undefined })
+    const decoded = await decodeQrImage(blob)
+    if (run !== scanRun) return
+    scanDecoded.value = decoded
+    scanStatus.value = decoded === null ? 'unreadable' : decoded === expected ? 'ok' : 'mismatch'
+  } catch (err) {
+    if (run !== scanRun) return
+    console.error('Scan check failed:', err)
+    scanStatus.value = 'error'
+  }
+}
+
+function scheduleScanCheck() {
+  clearTimeout(scanTimer)
+  scanRun++
+  // A batch export rewrites the data row by row; check again afterwards.
+  if (isExportingBatchQRs.value || !previewData.value) return
+  scanStatus.value = 'checking'
+  scanTimer = setTimeout(runScanCheck, 500)
+}
+watch(() => JSON.stringify({ ...buildSvgExportInput(), print: undefined }), scheduleScanCheck, {
+  immediate: true
+})
+watch(isExportingBatchQRs, (exporting) => {
+  if (!exporting) scheduleScanCheck()
+})
+onUnmounted(() => clearTimeout(scanTimer))
+//#endregion
+
 //#region /* Data modal */
 const isDataModalVisible = ref(false)
 const openDataModal = () => {
@@ -1576,6 +1711,17 @@ const updateDataFromModal = (newData: string) => {
           </div>
         </div>
         <div class="mt-3 flex flex-col items-center gap-4">
+          <ScanCheckPanel
+            v-if="exportMode === ExportMode.Single"
+            :status="scanStatus"
+            :decoded="scanDecoded"
+            :warnings="scanWarnings"
+          />
+          <CodeInfoPanel
+            v-if="exportMode === ExportMode.Single"
+            :info="encodedInfo"
+            :is-placeholder="!data"
+          />
           <div class="flex flex-col items-center justify-center gap-2">
             <button
               v-if="exportMode !== ExportMode.Batch"
@@ -1669,6 +1815,11 @@ const updateDataFromModal = (newData: string) => {
                   v-model="exportFilename"
                 />
               </div>
+              <PrintSizeSettings
+                v-model="printSettings"
+                :guidance="printInfo"
+                :problem="printProblem"
+              />
               <div class="flex flex-row items-center justify-center gap-2">
                 <button
                   id="download-qr-image-button-png"
@@ -2309,6 +2460,11 @@ const updateDataFromModal = (newData: string) => {
                         class="me-2 grow text-input"
                         :placeholder="t('data to encode e.g. a URL or a string')"
                       ></textarea>
+                      <DataChecks
+                        class="mt-2"
+                        :checks="dataChecks"
+                        @apply="(fixed: string) => (data = fixed)"
+                      />
                       <button
                         @click="openDataModal"
                         aria-haspopup="dialog"

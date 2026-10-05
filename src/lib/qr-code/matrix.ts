@@ -24,6 +24,8 @@ export interface QRMatrix {
   count: number
   /** QR version actually used (1-40); the matrix is 17 + 4 * version wide. */
   version: number
+  /** How the text was split into encoding modes. */
+  segments: Segment[]
 }
 
 export const MIN_QR_VERSION = 1
@@ -154,10 +156,12 @@ export function buildMatrix(data: string, ecLevel: ECLevel, minVersion = 0): QRM
     ascii ? optimalSegments(data, group) : [{ mode: 'Byte', text: data }]
 
   let qr: QRCodeModel | undefined
+  let segments: Segment[] = []
   try {
     if (min > 0) {
       try {
-        qr = makeQR(segmentsFor(versionGroup(min)), ecLevel, min)
+        segments = segmentsFor(versionGroup(min))
+        qr = makeQR(segments, ecLevel, min)
       } catch {
         // Too much data for the requested version: grow below.
       }
@@ -166,8 +170,12 @@ export function buildMatrix(data: string, ecLevel: ECLevel, minVersion = 0): QRM
     // segmentation that is optimal for a group; if the code lands in a bigger
     // group, redo it with that group's segmentation.
     for (let group = versionGroup(Math.max(min, 1)); !qr && group <= 2; group++) {
-      const candidate = makeQR(segmentsFor(group as VersionGroup), ecLevel, 0)
-      if (versionGroup(versionOf(candidate)) <= group || group === 2) qr = candidate
+      const candidateSegments = segmentsFor(group as VersionGroup)
+      const candidate = makeQR(candidateSegments, ecLevel, 0)
+      if (versionGroup(versionOf(candidate)) <= group || group === 2) {
+        qr = candidate
+        segments = candidateSegments
+      }
     }
   } catch (err) {
     throw new Error(
@@ -185,5 +193,5 @@ export function buildMatrix(data: string, ecLevel: ECLevel, minVersion = 0): QRM
     for (let c = 0; c < count; c++) row.push(qr.isDark(r, c))
     matrix.push(row)
   }
-  return { matrix, count, version: versionOf(qr) }
+  return { matrix, count, version: versionOf(qr), segments }
 }

@@ -1,8 +1,26 @@
 import { IS_COPY_IMAGE_TO_CLIPBOARD_SUPPORTED } from '@/utils/clipboard'
 import { downloadBlob } from '@/utils/download'
 import { buildSvgExportString, rasterizeSvg, type SvgExportInput } from '@/lib/qr-code'
+import {
+  printWidthPx,
+  setJpegDpi,
+  setPngDpi,
+  setSvgPrintSize,
+  type PrintUnit
+} from '@/utils/printSize'
 
-export interface ImageExportInput extends SvgExportInput {
+/** Export at a physical size: `width` (frame included) in `unit`, at `dpi`. */
+export interface PrintOptions {
+  width: number
+  unit: PrintUnit
+  dpi: number
+}
+
+export interface PrintableSvgInput extends SvgExportInput {
+  print?: PrintOptions
+}
+
+export interface ImageExportInput extends PrintableSvgInput {
   /**
    * Output raster dimensions for PNG/JPG. Defaults to the SVG's natural size
    * (i.e., `size` for no-frame, or the frame's computed outer dimensions).
@@ -29,6 +47,11 @@ function naturalSizeFromSvg(svgString: string): RenderedSize | null {
 
 function pickTargetSize(input: ImageExportInput, svgString: string): RenderedSize {
   const natural = naturalSizeFromSvg(svgString)
+  if (input.print && natural && natural.width > 0) {
+    // Exactly the requested print width; height keeps the SVG's proportions.
+    const width = printWidthPx(input.print)
+    return { width, height: Math.round((width * natural.height) / natural.width) }
+  }
   if (input.targetSize) {
     // The SVG that gets rasterised is the source of truth for layout — its
     // viewBox already encodes the correct proportions (square QR + frame
@@ -60,7 +83,7 @@ async function rasterizeFromInput(
 ): Promise<Blob> {
   const svgString = buildSvgExportString(input)
   const { width, height } = pickTargetSize(input, svgString)
-  return rasterizeSvg({
+  const blob = await rasterizeSvg({
     svgString,
     width,
     height,
@@ -68,6 +91,12 @@ async function rasterizeFromInput(
     quality: input.quality,
     background: mime === 'image/jpeg' ? (input.jpgBackground ?? '#ffffff') : undefined
   })
+  if (!input.print) return blob
+  // Record the DPI so layout and print programs place it at the right size.
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  const withDpi =
+    mime === 'image/png' ? setPngDpi(bytes, input.print.dpi) : setJpegDpi(bytes, input.print.dpi)
+  return new Blob([withDpi], { type: mime })
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {
@@ -136,8 +165,12 @@ export async function copyImageToClipboard(input: ImageExportInput): Promise<voi
 
 /* ---------- SVG (already lib-backed) ---------- */
 
-export function getSvgString(input: SvgExportInput): string {
-  return buildSvgExportString(input)
+function withPrintSize(svg: string, input: PrintableSvgInput): string {
+  return input.print ? setSvgPrintSize(svg, input.print.width, input.print.unit) : svg
+}
+
+export function getSvgString(input: PrintableSvgInput): string {
+  return withPrintSize(buildSvgExportString(input), input)
 }
 
 /**
@@ -147,15 +180,18 @@ export function getSvgString(input: SvgExportInput): string {
  * to fetch the external image and render a broken-image placeholder.
  * On a fetch failure the original href is kept and a warning is logged.
  */
-export async function getInlinedSvgString(input: SvgExportInput): Promise<string> {
-  return inlineExternalImagesInSvg(buildSvgExportString(input))
+export async function getInlinedSvgString(input: PrintableSvgInput): Promise<string> {
+  return inlineExternalImagesInSvg(getSvgString(input))
 }
 
-export function getSvgElement(input: SvgExportInput): string {
+export function getSvgElement(input: PrintableSvgInput): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(getSvgString(input))}`
 }
 
-export async function downloadSvgElement(input: SvgExportInput, filename: string): Promise<void> {
+export async function downloadSvgElement(
+  input: PrintableSvgInput,
+  filename: string
+): Promise<void> {
   try {
     const svgString = await getInlinedSvgString(input)
     const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })

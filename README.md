@@ -14,6 +14,12 @@ your device, and the page loads nothing from any other site.
 - Frames with captions, logos, colours and dot styles; save and load settings
 - Compact encoding (numbers and capitals take fewer modules) and an optional
   fixed size, so every code in a batch matches
+- Checks that each code scans (a test decode in your browser) and warns about
+  low contrast, inverted colours and a missing quiet zone
+- Shows exactly what a code stores, and flags links without `https://`,
+  tracking parameters and stray spaces, with one-click fixes
+- Export at a print size (mm or inches) and DPI, with module-size and
+  scanning-distance guidance
 - Scan codes from an image, the clipboard or the camera
 - Installs as an offline app; available in 30+ languages
 
@@ -68,6 +74,20 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
   smaller codes; text with non-ASCII characters is encoded exactly as before.
   A new "Size (QR version)" setting fixes the version (1-40) so batch exports
   come out the same size, growing only when the data doesn't fit.
+- **Scan check.** Every change renders the code as a PNG export would and
+  decodes it with the bundled scanner, showing whether it reads back exactly.
+  Colour and quiet-zone warnings flag what phone cameras tend to struggle with.
+- **What's in this code.** A panel shows the exact stored text, its size in
+  bytes, the QR version, error correction and encoding modes. The data field
+  warns about web addresses without `https://`, tracking parameters (`utm_*`,
+  `fbclid`, `gclid` and similar) and leading or trailing whitespace, each with
+  a fix button.
+- **Print size.** PNG, JPG and SVG exports (batch included) can be sized in mm
+  or inches at 150, 300 or 600 DPI. The DPI is written into the PNG and JPEG
+  files and the SVG gets a physical width and height. The panel shows the
+  module size and a rough scanning distance, and warns below 0.4 mm modules.
+- **Rukus preset.** Rukus the cat (from b0r3d.org's favicon art) joins the
+  b0r3d Cup as a logo preset.
 - **Fixes.** The seven type errors in upstream's `vue-tsc` check are fixed, and
   tests were added for the local presets and fonts.
 - **Repository.** Upstream's GitHub workflows, Docker and nginx files,

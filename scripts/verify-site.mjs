@@ -78,6 +78,15 @@ async function run(base) {
     )
     const back = await page.locator('footer a', { hasText: '← b0r3d.org' }).getAttribute('href')
     check('footer links back to b0r3d.org', back === 'https://b0r3d.org')
+    const scanCheck = page.locator('#scan-check')
+    await scanCheck
+      .getByText('Scans.')
+      .waitFor({ timeout: 10000 })
+      .catch(() => {})
+    check(
+      'scan check confirms the default code scans',
+      (await scanCheck.innerText()).includes('Scans.')
+    )
 
     // Manifest and service worker
     const manifestHref = await page.locator('link[rel="manifest"]').getAttribute('href')

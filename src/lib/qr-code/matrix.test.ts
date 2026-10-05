@@ -110,6 +110,14 @@ describe('buildMatrix', () => {
       expect(buildMatrix(text, 'M').matrix).toEqual(byteOnlyMatrix(text, 'M'))
     })
 
+    it('reports the segments it used', () => {
+      expect(buildMatrix('id=12345678901234567890', 'Q').segments.map((s) => s.mode)).toEqual([
+        'Byte',
+        'Numeric'
+      ])
+      expect(buildMatrix('café', 'Q').segments).toEqual([{ mode: 'Byte', text: 'café' }])
+    })
+
     it('splits mixed text only where a run pays for its own segment', () => {
       expect(optimalSegments('abc123', 0)).toEqual([{ mode: 'Byte', text: 'abc123' }])
       expect(optimalSegments('0123456789', 0)).toEqual([{ mode: 'Numeric', text: '0123456789' }])
