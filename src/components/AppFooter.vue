@@ -2,6 +2,10 @@
 const UPSTREAM_URL = 'https://github.com/lyqht/mini-qr'
 const SOURCE_URL = 'https://github.com/still-b0r3d/qr.b0r3d.org'
 const LICENSE_URL = `${SOURCE_URL}/blob/main/LICENSE`
+// Both come from vite.config.js; a build without them shows "dev".
+const VERSION = import.meta.env.VITE_APP_VERSION || 'dev'
+const COMMIT = import.meta.env.VITE_BUILD_COMMIT || ''
+const COMMIT_URL = `${SOURCE_URL}/commit/${COMMIT}`
 </script>
 
 <template>
@@ -15,6 +19,20 @@ const LICENSE_URL = `${SOURCE_URL}/blob/main/LICENSE`
       <a :href="LICENSE_URL" target="_blank" rel="noopener noreferrer">GPL-3.0</a>
       <span aria-hidden="true"> · </span>
       <a :href="SOURCE_URL" target="_blank" rel="noopener noreferrer">Source</a>
+    </div>
+    <div class="version" data-testid="app-version">
+      b0r3d QR v{{ VERSION }}
+      <template v-if="COMMIT">
+        <span aria-hidden="true"> · </span>
+        build
+        <a
+          :href="COMMIT_URL"
+          target="_blank"
+          rel="noopener noreferrer"
+          :title="`Source code for this build (${COMMIT})`"
+          >{{ COMMIT.slice(0, 7) }}</a
+        >
+      </template>
     </div>
   </footer>
 </template>
@@ -31,6 +49,10 @@ const LICENSE_URL = `${SOURCE_URL}/blob/main/LICENSE`
   font-size: 0.875rem;
   line-height: 1.5;
   text-align: center;
+}
+
+.version {
+  font-size: 0.75rem;
 }
 
 .back-link {

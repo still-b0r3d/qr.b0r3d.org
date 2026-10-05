@@ -101,12 +101,36 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
   longer follows a saved or browser language, so nobody can get stuck in a
   language they can't read. Upstream's translations stay in `locales/` but
   aren't loaded.
+- **Version in the footer** (2026-10-05). The footer shows the version and
+  the build; see Versioning below.
 - **Fixes.** The seven type errors in upstream's `vue-tsc` check are fixed, and
   tests were added for the local presets and fonts.
 - **Repository.** Upstream's GitHub workflows, Docker and nginx files,
   contributor docs and translation-service config were not carried over.
 
 Ideas under consideration are in [TODO.md](TODO.md).
+
+## Versioning
+
+Versions look like `0.33.0+b0r3d.3`: the Mini QR release this is built on,
+then b0r3d's own release count on top of it. The `+` is semver's build
+metadata, meaning "0.33.0 with these changes", not a release before or after
+it.
+
+- Each release of this site bumps the number after `b0r3d.` in
+  `package.json`.
+- Moving to a newer Mini QR changes the first part and starts the count again
+  at 1, e.g. `0.34.0+b0r3d.1`.
+
+The footer shows the version and the **build**: the commit the site was built
+from, linked to its source on GitHub. The build is filled in automatically
+and is never bumped by hand.
+
+| Version          | Date       | What changed                           |
+| ---------------- | ---------- | -------------------------------------- |
+| `0.33.0+b0r3d.1` | 2026-10-04 | First release on qr.b0r3d.org          |
+| `0.33.0+b0r3d.2` | 2026-10-05 | Logos from a web address, English only |
+| `0.33.0+b0r3d.3` | 2026-10-05 | Version and build shown in the footer  |
 
 ## Development
 

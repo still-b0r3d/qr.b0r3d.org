@@ -1,8 +1,26 @@
+import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueJsx from '@vitejs/plugin-vue-jsx'
 import { VitePWA } from 'vite-plugin-pwa'
+
+// Shown in the footer. The version is Mini QR's plus b0r3d's own release
+// count (see README, Versioning); the build is the commit it was built from,
+// which the hosting build passes in and a local build asks git for.
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+
+function buildCommit() {
+  if (process.env.CF_PAGES_COMMIT_SHA) return process.env.CF_PAGES_COMMIT_SHA
+  try {
+    return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim()
+  } catch {
+    return ''
+  }
+}
 
 export default defineConfig(({ mode }) => {
   // Load environment variables
@@ -19,7 +37,9 @@ export default defineConfig(({ mode }) => {
     base,
     define: {
       // Make BASE_PATH available to client-side code through import.meta.env
-      'import.meta.env.BASE_PATH': JSON.stringify(base)
+      'import.meta.env.BASE_PATH': JSON.stringify(base),
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(version),
+      'import.meta.env.VITE_BUILD_COMMIT': JSON.stringify(buildCommit())
     },
     plugins: [
       vue(),

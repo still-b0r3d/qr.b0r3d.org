@@ -14,9 +14,10 @@ import fs from 'fs'
 import path from 'path'
 import process from 'process'
 import { chromium } from 'playwright'
-import { decodePng, outputDir, withSite } from './lib/verify-helpers.mjs'
+import { decodePng, outputDir, ROOT, withSite } from './lib/verify-helpers.mjs'
 
 const DEFAULT_DATA = 'https://b0r3d.org'
+const PKG_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version
 const PRESETS = ['Rounded', 'Dots', 'b0r3d Cup', 'Rukus', 'Plain']
 
 async function run(base) {
@@ -78,6 +79,14 @@ async function run(base) {
     )
     const back = await page.locator('footer a', { hasText: '← b0r3d.org' }).getAttribute('href')
     check('footer links back to b0r3d.org', back === 'https://b0r3d.org')
+    const versionLine = page.getByTestId('app-version')
+    const buildHref = await versionLine.getByRole('link').getAttribute('href')
+    check(
+      'footer shows the version and build',
+      (await versionLine.innerText()).includes(`b0r3d QR v${PKG_VERSION}`) &&
+        /\/commit\/[0-9a-f]{40}$/.test(buildHref || ''),
+      (await versionLine.innerText()).trim()
+    )
     const scanCheck = page.locator('#scan-check')
     await scanCheck
       .getByText('Scans.')
