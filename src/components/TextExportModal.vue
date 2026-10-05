@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import JSZip from 'jszip'
 import { buildMatrix } from '@/lib/qr-code'
 import { downloadBlob } from '@/utils/download'
 import {
@@ -93,6 +92,7 @@ async function downloadBatchZip(format: AsciiFormat, wrap: 'md' | 'txt') {
   isBatchDownloading.value = true
   batchProgress.value = { current: 0, total: props.batchRows.length }
   try {
+    const { default: JSZip } = await import('jszip')
     const zip = new JSZip()
     const used = new Set<string>()
     for (let i = 0; i < props.batchRows.length; i++) {

@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import MobileMenu from '@/components/MobileMenu.vue'
-import QRCodeScan from '@/components/QRCodeScan.vue'
+import type QRCodeScanComponent from '@/components/QRCodeScan.vue'
 import QRCodeCreate from '@/components/QRCodeCreate.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import cupUrl from '@/assets/b0r3d-cup.png'
 import useDarkModePreference from '@/utils/useDarkModePreference'
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, defineAsyncComponent, ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 const { isDarkMode, isDarkModePreferenceSetBySystem, toggleDarkModePreference } =
   useDarkModePreference()
 
+// The scanner (and its decoder) only loads when someone opens Scan.
+const QRCodeScan = defineAsyncComponent(() => import('@/components/QRCodeScan.vue'))
+
 const capturedData = ref<string>('')
-const qrCodeScanRef = ref<InstanceType<typeof QRCodeScan> | null>(null)
+const qrCodeScanRef = ref<InstanceType<typeof QRCodeScanComponent> | null>(null)
 
 // #region Scroll-aware header
 const lastScrollTop = ref(0)
