@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
+  checkGtin,
   detectDataType,
+  generateGs1DigitalLinkData,
+  GS1_DIGITAL_LINK_DEFAULT_DOMAIN,
+  isValidIban,
+  type WifiEncryption,
   generateEmailData,
   generateEpcData,
   generateEventData,
@@ -43,7 +48,7 @@ const smsMessage = ref('')
 // WiFi refs
 const wifiSSID = ref('')
 const wifiPassword = ref('')
-const wifiEncryption = ref('nopass')
+const wifiEncryption = ref<WifiEncryption>('nopass')
 const wifiHidden = ref(false)
 
 // vCard refs
@@ -90,6 +95,22 @@ const epcRemittanceReference = ref('')
 const epcRemittanceText = ref('')
 const epcOriginatorInfo = ref('')
 const epcVersion = ref<'001' | '002'>('002')
+
+// GS1 Digital Link refs: a product's web address, which phones open as a link
+// and shop checkouts read as the product (GTIN).
+const gs1Domain = ref('')
+const gs1Gtin = ref('')
+const gs1Lot = ref('')
+const gs1Serial = ref('')
+const gs1Expiry = ref('')
+const gs1GtinProblem = computed(() => (gs1Gtin.value ? checkGtin(gs1Gtin.value) : null))
+
+// A typo in an IBAN would send money to the wrong account (or nowhere), and
+// its check digits catch nearly all of them; say so as soon as it's typed.
+const epcIbanProblem = computed(() => {
+  const iban = epcIban.value.replace(/\s+/g, '')
+  return iban.length >= 15 && !isValidIban(iban)
+})
 
 // Add validation state
 const invalidFields = ref<string[]>([])
@@ -195,6 +216,14 @@ watch(epcIban, (newValue) => {
   if (newValue && invalidFields.value.includes('epcIban')) {
     invalidFields.value = invalidFields.value.filter((field) => field !== 'epcIban')
   }
+  // From here on the live check under the field takes over.
+  invalidFields.value = invalidFields.value.filter((field) => field !== 'epcIbanCheck')
+})
+
+watch(gs1Gtin, (newValue) => {
+  if (newValue && invalidFields.value.includes('gs1Gtin')) {
+    invalidFields.value = invalidFields.value.filter((field) => field !== 'gs1Gtin')
+  }
 })
 
 watch(epcBic, (newValue) => {
@@ -247,7 +276,7 @@ const detectAndSetDataType = (data: string) => {
 
     case 'wifi':
       wifiSSID.value = (result.parsedData.ssid as string) || ''
-      wifiEncryption.value = (result.parsedData.encryption as 'nopass' | 'WEP' | 'WPA') || 'nopass'
+      wifiEncryption.value = (result.parsedData.encryption as WifiEncryption) || 'nopass'
       wifiPassword.value = (result.parsedData.password as string) || ''
       wifiHidden.value = Boolean(result.parsedData.hidden)
       break
@@ -280,6 +309,17 @@ const detectAndSetDataType = (data: string) => {
       eventLocation.value = (result.parsedData.location as string) || ''
       eventStartTime.value = (result.parsedData.startTime as string) || ''
       eventEndTime.value = (result.parsedData.endTime as string) || ''
+      break
+
+    case 'gs1dl':
+      gs1Domain.value =
+        result.parsedData.domain === GS1_DIGITAL_LINK_DEFAULT_DOMAIN
+          ? ''
+          : (result.parsedData.domain as string) || ''
+      gs1Gtin.value = (result.parsedData.gtin as string) || ''
+      gs1Lot.value = (result.parsedData.lot as string) || ''
+      gs1Serial.value = (result.parsedData.serial as string) || ''
+      gs1Expiry.value = (result.parsedData.expiry as string) || ''
       break
 
     case 'epc':
@@ -367,6 +407,9 @@ const validateForm = () => {
         isValid = false
       }
       break
+    case 'gs1dl':
+      if (!validateGs1()) isValid = false
+      break
     case 'epc':
       if (!epcName.value) {
         invalidFields.value.push('epcName')
@@ -374,6 +417,9 @@ const validateForm = () => {
       }
       if (!epcIban.value) {
         invalidFields.value.push('epcIban')
+        isValid = false
+      } else if (!isValidIban(epcIban.value)) {
+        invalidFields.value.push('epcIbanCheck')
         isValid = false
       }
       if (epcVersion.value === '001' && !epcBic.value) {
@@ -384,6 +430,15 @@ const validateForm = () => {
   }
 
   return isValid
+}
+
+// validateForm's 'gs1dl' case
+function validateGs1(): boolean {
+  if (checkGtin(gs1Gtin.value)) {
+    invalidFields.value.push('gs1Gtin')
+    return false
+  }
+  return true
 }
 
 const isFieldInvalid = (fieldName: string) => {
@@ -423,7 +478,7 @@ const generateDataString = () => {
       generatedString = generateWifiData({
         ssid: wifiSSID.value,
         password: wifiPassword.value,
-        encryption: wifiEncryption.value as 'nopass' | 'WEP' | 'WPA', // Type assertion
+        encryption: wifiEncryption.value,
         hidden: wifiHidden.value
       })
       break
@@ -459,6 +514,15 @@ const generateDataString = () => {
         location: eventLocation.value,
         startTime: eventStartTime.value,
         endTime: eventEndTime.value
+      })
+      break
+    case 'gs1dl':
+      generatedString = generateGs1DigitalLinkData({
+        domain: gs1Domain.value,
+        gtin: gs1Gtin.value,
+        lot: gs1Lot.value,
+        serial: gs1Serial.value,
+        expiry: gs1Expiry.value
       })
       break
     case 'epc':
@@ -547,6 +611,14 @@ const fillWithExampleData = () => {
       eventStartTime.value = formatForInput(now)
       eventEndTime.value = formatForInput(oneHourLater)
       break
+    case 'gs1dl':
+      // GS1's documentation GTIN, so the example can't point at a real product.
+      gs1Domain.value = ''
+      gs1Gtin.value = '09506000134352'
+      gs1Lot.value = 'ABC123'
+      gs1Serial.value = ''
+      gs1Expiry.value = '2027-12-31'
+      break
     case 'epc':
       epcName.value = 'Jane Smith'
       epcIban.value = 'DE89370400440532013000'
@@ -634,6 +706,7 @@ const closeModal = () => {
           <option value="location">{{ t('Location') }}</option>
           <option value="event">{{ t('Event') }}</option>
           <option value="epc">{{ t('EPC QR (SEPA Payment)') }}</option>
+          <option value="gs1dl">{{ t('Product (GS1 Digital Link)') }}</option>
         </select>
       </div>
 
@@ -806,8 +879,16 @@ const closeModal = () => {
           <select id="wifiEncryption" v-model="wifiEncryption" class="text-input">
             <option value="nopass">{{ t('No encryption') }}</option>
             <option value="WEP">WEP</option>
-            <option value="WPA">WPA/WPA2</option>
+            <option value="WPA">{{ t('WPA/WPA2/WPA3 (most networks)') }}</option>
+            <option value="SAE">{{ t('WPA3 only') }}</option>
           </select>
+          <p v-if="wifiEncryption === 'SAE'" class="-mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            {{
+              t(
+                "Only for networks that accept nothing but WPA3. Some phones can't join from a WPA3-only code; WPA/WPA2/WPA3 works for mixed networks."
+              )
+            }}
+          </p>
 
           <label for="wifiSSID" class="label">
             {{ t('Wireless SSID') }} <span class="text-red-500" aria-hidden="true">*</span>
@@ -1127,6 +1208,73 @@ const closeModal = () => {
           </p>
         </div>
 
+        <div v-if="selectedType === 'gs1dl'" class="flex flex-col gap-4">
+          <p class="text-sm text-zinc-600 dark:text-zinc-400">
+            {{
+              t(
+                'A web address for a product. Phones open it as a link; shop checkouts read the product number from it, the same as from an EAN or UPC barcode.'
+              )
+            }}
+          </p>
+          <label for="gs1Gtin" class="label">
+            {{ t('Product number (GTIN)') }}
+            <span class="text-red-500" aria-hidden="true">*</span>
+          </label>
+          <input
+            type="text"
+            inputmode="numeric"
+            id="gs1Gtin"
+            v-model="gs1Gtin"
+            placeholder="09506000134352"
+            maxlength="18"
+            class="font-mono text-input"
+            :class="{
+              'border-red-500 focus:border-red-500 focus:ring-red-500':
+                isFieldInvalid('gs1Gtin') || gs1GtinProblem
+            }"
+            required
+            aria-required="true"
+            aria-describedby="gs1GtinHelp"
+          />
+          <p
+            v-if="gs1GtinProblem || isFieldInvalid('gs1Gtin')"
+            id="gs1GtinHelp"
+            role="alert"
+            class="mt-1 text-sm text-red-500"
+          >
+            {{ t(gs1GtinProblem ?? 'Enter the product number (GTIN).') }}
+          </p>
+          <p v-else id="gs1GtinHelp" class="-mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            {{ t('The number under the barcode: 8, 12, 13 or 14 digits.') }}
+          </p>
+
+          <label for="gs1Lot" class="label">{{ t('Batch or lot') }}</label>
+          <input type="text" id="gs1Lot" v-model="gs1Lot" maxlength="20" class="text-input" />
+
+          <label for="gs1Serial" class="label">{{ t('Serial number') }}</label>
+          <input type="text" id="gs1Serial" v-model="gs1Serial" maxlength="20" class="text-input" />
+
+          <label for="gs1Expiry" class="label">{{ t('Expiry date') }}</label>
+          <input type="date" id="gs1Expiry" v-model="gs1Expiry" class="text-input" />
+
+          <label for="gs1Domain" class="label">{{ t('Web address (resolver)') }}</label>
+          <input
+            type="url"
+            id="gs1Domain"
+            v-model="gs1Domain"
+            :placeholder="GS1_DIGITAL_LINK_DEFAULT_DOMAIN"
+            class="text-input"
+            aria-describedby="gs1DomainHelp"
+          />
+          <p id="gs1DomainHelp" class="-mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            {{
+              t(
+                "Your brand's own, if it has one set up; otherwise GS1's, which sends people to whatever the brand registered."
+              )
+            }}
+          </p>
+        </div>
+
         <div v-if="selectedType === 'epc'" class="flex flex-col gap-4">
           <p class="text-sm text-zinc-500 dark:text-zinc-400">
             {{
@@ -1180,6 +1328,14 @@ const closeModal = () => {
           />
           <p v-if="isFieldInvalid('epcIban')" class="mt-1 text-sm text-red-500">
             {{ t('IBAN is required') }}
+          </p>
+          <p
+            v-else-if="epcIbanProblem || isFieldInvalid('epcIbanCheck')"
+            id="epcIbanProblem"
+            role="alert"
+            class="mt-1 text-sm text-red-500"
+          >
+            {{ t("This IBAN's check digits don't match. Check it for a typo.") }}
           </p>
 
           <label for="epcBic" class="label">

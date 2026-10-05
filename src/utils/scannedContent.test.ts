@@ -36,6 +36,14 @@ describe('describeScannedContent', () => {
     })
   })
 
+  it('labels product links (GS1 Digital Link) and still links them', () => {
+    expect(describeScannedContent('https://id.gs1.org/01/09506000134352/10/ABC123')).toEqual({
+      kind: 'url',
+      label: 'Product link (GS1 Digital Link)',
+      href: 'https://id.gs1.org/01/09506000134352/10/ABC123'
+    })
+  })
+
   it('links emails, calls and places', () => {
     expect(describeScannedContent('mailto:a@example.com').href).toBe('mailto:a@example.com')
     expect(describeScannedContent('a@example.com').href).toBe('mailto:a@example.com')

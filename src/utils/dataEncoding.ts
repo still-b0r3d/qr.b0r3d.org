@@ -1,3 +1,5 @@
+import { gs1CheckDigit } from '../lib/barcode/formats'
+
 /** Generic function to escape special characters in a string */
 const escapeSpecialChars = (val: string, charsToEscape: string): string => {
   if (!val) return ''
@@ -507,6 +509,66 @@ export const isValidIban = (value: string): boolean => {
   return remainder === 1
 }
 
+/** GS1's own resolver, for brands that don't run one on their own domain. */
+export const GS1_DIGITAL_LINK_DEFAULT_DOMAIN = 'https://id.gs1.org'
+
+/**
+ * A problem with a GTIN (the product number in a barcode: 8, 12, 13 or 14
+ * digits, check digit included), or null when it is valid.
+ */
+export const checkGtin = (value: string): string | null => {
+  const gtin = value.replace(/[\s-]/g, '')
+  if (!gtin) return 'Enter the product number (GTIN).'
+  if (!/^\d+$/.test(gtin)) return 'A GTIN has digits only.'
+  if (![8, 12, 13, 14].includes(gtin.length)) {
+    return 'A GTIN has 8, 12, 13 or 14 digits, check digit included.'
+  }
+  const expected = gs1CheckDigit(gtin.slice(0, -1))
+  if (Number(gtin[gtin.length - 1]) !== expected) {
+    return `The check digit (the last digit) should be ${expected}.`
+  }
+  return null
+}
+
+/**
+ * Generates a GS1 Digital Link: a web address carrying a product's GTIN (and
+ * optionally its batch, serial number and expiry date) that phones open as a
+ * link and shop checkouts read as the product. QR codes like this are what
+ * retail is moving to from EAN/UPC barcodes ("Sunrise 2027").
+ * @see https://ref.gs1.org/standards/digital-link/
+ * @param {object} data
+ * @param {string} [data.domain] - The brand's resolver, e.g. https://id.example.com; GS1's by default
+ * @param {string} data.gtin - 8, 12, 13 or 14 digits, check digit included
+ * @param {string} [data.lot] - Batch or lot (AI 10)
+ * @param {string} [data.serial] - Serial number (AI 21)
+ * @param {string} [data.expiry] - Expiry date as YYYY-MM-DD (AI 17)
+ * @returns {string} - The link, or an empty string if the GTIN is invalid
+ */
+export const generateGs1DigitalLinkData = (data: {
+  domain?: string
+  gtin: string
+  lot?: string
+  serial?: string
+  expiry?: string
+}): string => {
+  const gtin = data.gtin.replace(/[\s-]/g, '')
+  if (checkGtin(gtin)) return ''
+  const domain = (data.domain?.trim() || GS1_DIGITAL_LINK_DEFAULT_DOMAIN).replace(/\/+$/, '')
+  let link = /^https?:\/\//i.test(domain) ? domain : `https://${domain}`
+  // Key qualifiers go in the path in this order; GTINs are always 14 digits.
+  link += `/01/${gtin.padStart(14, '0')}`
+  if (data.lot) link += `/10/${encodeURIComponent(data.lot)}`
+  if (data.serial) link += `/21/${encodeURIComponent(data.serial)}`
+  const expiry = /^\d{2}(\d{2})-(\d{2})-(\d{2})$/.exec(data.expiry ?? '')
+  if (expiry) link += `?17=${expiry[1]}${expiry[2]}${expiry[3]}`
+  return link
+}
+
+// Only links this form can write back unchanged count as GS1 Digital Links
+// here; anything else (other qualifiers or attributes) stays a plain URL.
+const GS1_DIGITAL_LINK =
+  /^(https?:\/\/[^?#]*?)\/01\/(\d{14})(?:\/10\/([^/?#]+))?(?:\/21\/([^/?#]+))?\/?(?:\?17=(\d{6}))?$/i
+
 // --- Data Detection ---
 
 export type DetectedDataType =
@@ -520,6 +582,7 @@ export type DetectedDataType =
   | 'location'
   | 'event'
   | 'epc'
+  | 'gs1dl'
 
 interface ContentLine {
   /** Property name, upper case, without any group prefix ("item1."). */
@@ -784,6 +847,29 @@ export const detectDataType = (
 
   // vCard
   if (/^\s*BEGIN:VCARD/i.test(data)) return detected(parseVCard(data), 'vcard')
+
+  // GS1 Digital Link (a product web address)
+  const gs1 = GS1_DIGITAL_LINK.exec(data)
+  if (gs1 && !checkGtin(gs1[2])) {
+    const decode = (part?: string) => {
+      try {
+        return part ? decodeURIComponent(part) : ''
+      } catch {
+        return part ?? ''
+      }
+    }
+    const yymmdd = gs1[5]
+    return detected(
+      {
+        domain: gs1[1],
+        gtin: gs1[2],
+        lot: decode(gs1[3]),
+        serial: decode(gs1[4]),
+        expiry: yymmdd ? `20${yymmdd.slice(0, 2)}-${yymmdd.slice(2, 4)}-${yymmdd.slice(4)}` : ''
+      },
+      'gs1dl'
+    )
+  }
 
   // URL
   if (/^https?:\/\//i.test(data)) return detected({ url: data }, 'url')

@@ -14,6 +14,8 @@ import {
   escapeVCard,
   escapeWiFi,
   escapeICal,
+  checkGtin,
+  generateGs1DigitalLinkData,
   iCalDateToLocalInput,
   isValidIban,
   normalizeVCardVersion
@@ -763,5 +765,55 @@ describe('generateEpcData amounts', () => {
     expect(
       generateEpcData({ name: 'Jane', iban: 'DE89370400440532013000', amount: '12,50' })
     ).toContain('EUR12.50')
+  })
+})
+
+describe('GS1 Digital Link', () => {
+  it('builds the link with a 14-digit GTIN, qualifiers in order and the expiry as a query', () => {
+    expect(
+      generateGs1DigitalLinkData({
+        gtin: '9506000134352',
+        lot: 'AB/12 3',
+        serial: 'S1',
+        expiry: '2027-12-31'
+      })
+    ).toBe('https://id.gs1.org/01/09506000134352/10/AB%2F12%203/21/S1?17=271231')
+    expect(generateGs1DigitalLinkData({ domain: 'id.example.com/', gtin: '09506000134352' })).toBe(
+      'https://id.example.com/01/09506000134352'
+    )
+  })
+
+  it('refuses a GTIN with a wrong check digit', () => {
+    expect(generateGs1DigitalLinkData({ gtin: '9506000134351' })).toBe('')
+    expect(checkGtin('9506000134351')).toBe('The check digit (the last digit) should be 2.')
+    expect(checkGtin('123')).toContain('8, 12, 13 or 14 digits')
+    expect(checkGtin('96385074')).toBeNull()
+  })
+
+  it('reads its own links back into the form', () => {
+    const link = generateGs1DigitalLinkData({
+      domain: 'https://id.example.com/products',
+      gtin: '09506000134352',
+      lot: 'AB/12 3',
+      expiry: '2027-12-31'
+    })
+    expect(detectDataType(link)).toEqual({
+      type: 'gs1dl',
+      parsedData: {
+        domain: 'https://id.example.com/products',
+        gtin: '09506000134352',
+        lot: 'AB/12 3',
+        serial: '',
+        expiry: '2027-12-31'
+      }
+    })
+  })
+
+  it('leaves links it could not write back unchanged as plain URLs', () => {
+    expect(detectDataType('https://id.gs1.org/01/09506000134352/22/x').type).toBe('url')
+    expect(detectDataType('https://id.gs1.org/01/09506000134352?17=271231&3103=000189').type).toBe(
+      'url'
+    )
+    expect(detectDataType('https://id.gs1.org/01/09506000134351').type).toBe('url')
   })
 })

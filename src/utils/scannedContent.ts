@@ -67,6 +67,8 @@ export function describeScannedContent(text: string, format?: string): ScannedCo
   switch (type) {
     case 'url':
       return content('url', text)
+    case 'gs1dl':
+      return content('url', text, 'Product link (GS1 Digital Link)')
     case 'email':
       return content('email', text)
     case 'phone':
