@@ -958,7 +958,7 @@ const closeModal = () => {
               type="url"
               id="vcardWebsite"
               v-model="vcardWebsite"
-              placeholder="https://acme.com"
+              placeholder="https://example.com"
               class="text-input"
             />
           </div>

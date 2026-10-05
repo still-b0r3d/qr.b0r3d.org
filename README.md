@@ -47,8 +47,10 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
 - **Rebrand.** Name, page title, share tags, PWA manifest, favicon, app icons,
   iOS start-up images, share image and PWA screenshots are now b0r3d QR's, made
   from the b0r3d cup (`pnpm generate-brand-assets`). Upstream's marketing media,
-  icon sets and sponsor/star links were removed. Example data uses
-  `https://b0r3d.org`, and feedback links point to this repository.
+  icon sets and sponsor/star links were removed. Example data and the
+  batch-export sample CSVs use `https://b0r3d.org` and reserved
+  `example.com` addresses instead of upstream's personal links, and feedback
+  links point to this repository.
 - **Look.** b0r3d.org's dark palette, Courier headings, glowing title with the
   cup logo, faint scanlines behind the app, and a line saying codes are static
   and never expire. Dark mode is the default; the light/dark/system toggle

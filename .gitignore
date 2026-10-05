@@ -40,8 +40,5 @@ tests/e2e/temp-downloads/
 storybook-static/
 package-lock.json
 
-# Vercel CLI (project link + pulled env) — local only, never commit
-.vercel
-
 # Vitest browser-mode failure screenshots
 __screenshots__/
