@@ -1,7 +1,7 @@
 // Whole-site check. Serves (or visits) the app from its root in headless
 // Chromium and logs every request, including the service worker's, while it
 // checks the defaults, manifest, service worker, every preset, a self-hosted
-// font, all export formats, the language switch, file and camera scanning
+// font, all export formats, English-only text, file and camera scanning
 // (fake camera) and an offline reload. Fails if any request goes to another
 // origin, except b0r3d.org's site-wide visitor stats beacon.
 //
@@ -144,27 +144,23 @@ async function run(base) {
     }
     check('framed PNG still decodes', decodes(path.join(out, 'framed.png')) === DEFAULT_DATA)
 
-    // Language switch
-    await page
-      .getByRole('combobox', { name: /select language/i })
-      .first()
-      .click()
-    await page.getByRole('option', { name: 'German' }).click()
-    await page.waitForTimeout(500)
+    // English only: no language picker, and a language saved by the old
+    // picker (Mini QR's 'preferred-language' key) is ignored.
     check(
-      'language switch (German)',
+      'no language picker',
+      (await page.getByRole('combobox', { name: /select language/i }).count()) === 0
+    )
+    await page.evaluate(() => localStorage.setItem('preferred-language', 'de'))
+    await page.reload()
+    await page.waitForTimeout(1000)
+    check(
+      'stays English with an old saved language',
       await page
-        .getByText('Rahmeneinstellungen')
+        .getByText('Frame settings')
         .first()
         .isVisible()
         .catch(() => false)
     )
-    await page
-      .getByRole('combobox', { name: /sprache|language/i })
-      .first()
-      .click()
-    await page.getByRole('option', { name: /^(English|Englisch)$/ }).click()
-    await page.waitForTimeout(300)
 
     // Scan an exported PNG
     await page
@@ -223,7 +219,8 @@ async function run(base) {
     `${requests.length} requests, ${foreign.length} to other origins`
   )
   for (const u of foreign) console.log(`      FOREIGN ${u}`)
-  for (const u of outside.filter(siteStats)) console.log(`      site-wide visitor stats (not the app) ${u}`)
+  for (const u of outside.filter(siteStats))
+    console.log(`      site-wide visitor stats (not the app) ${u}`)
   if (pageErrors.length) console.log('page errors:', pageErrors)
   const passed = results.filter(Boolean).length
   console.log(`\n${passed}/${results.length} checks passed`)

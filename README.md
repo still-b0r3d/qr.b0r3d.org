@@ -5,8 +5,9 @@
 It makes **static QR codes only**. Whatever you type is encoded straight into
 the pattern, so there is no redirect link, no account and nothing that can ever
 expire. The app runs entirely in your browser: codes are drawn and exported on
-your device, and the app loads nothing from any other site. Like the rest of
-b0r3d.org, the site counts visits; that never includes what you type.
+your device, and the app loads nothing from any other site (except a logo
+address you enter yourself). Like the rest of b0r3d.org, the site counts
+visits; that never includes what you type.
 
 - Text, URLs, email, phone, SMS, Wi-Fi, vCard, location, calendar events and
   EPC (SEPA) payments
@@ -22,7 +23,7 @@ b0r3d.org, the site counts visits; that never includes what you type.
 - Export at a print size (mm or inches) and DPI, with module-size and
   scanning-distance guidance
 - Scan codes from an image, the clipboard or the camera
-- Installs as an offline app; available in 30+ languages
+- Installs as an offline app
 
 ## Based on Mini QR
 
@@ -89,6 +90,17 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
   module size and a rough scanning distance, and warns below 0.4 mm modules.
 - **Rukus preset.** Rukus the cat (from b0r3d.org's favicon art) joins the
   b0r3d Cup as a logo preset.
+- **Logos from a web address** (2026-10-05). Upstream showed a remote logo in
+  the preview but silently left it out of downloads when its site doesn't
+  allow other sites to use its images (no CORS headers). Now the address is
+  fetched once and the image copied in, so downloads always include it; if
+  the site refuses, the logo is left out of the preview too and a message
+  under the field says to save the image and use Upload image. Saved settings
+  keep the address as typed.
+- **English only** (2026-10-05). The language picker is gone and the app no
+  longer follows a saved or browser language, so nobody can get stuck in a
+  language they can't read. Upstream's translations stay in `locales/` but
+  aren't loaded.
 - **Fixes.** The seven type errors in upstream's `vue-tsc` check are fixed, and
   tests were added for the local presets and fonts.
 - **Repository.** Upstream's GitHub workflows, Docker and nginx files,

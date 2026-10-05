@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/vue'
-import LanguageSelector from '@/components/LanguageSelector.vue'
 import { useI18n } from 'vue-i18n'
 
 defineProps<{
@@ -137,11 +136,6 @@ onUnmounted(() => {
           </span>
           <span>{{ t('Toggle dark mode') }}</span>
         </button>
-
-        <!-- Language selector -->
-        <div class="px-2 py-1.5">
-          <LanguageSelector />
-        </div>
 
         <hr class="border-zinc-200 dark:border-zinc-700" />
 

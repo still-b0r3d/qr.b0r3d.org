@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import LanguageSelector from '@/components/LanguageSelector.vue'
 import MobileMenu from '@/components/MobileMenu.vue'
 import QRCodeScan from '@/components/QRCodeScan.vue'
 import QRCodeCreate from '@/components/QRCodeCreate.vue'
@@ -186,7 +185,6 @@ const isModeToggleDisabled = computed(() => {
             </svg>
           </span>
         </button>
-        <LanguageSelector />
       </div>
     </div>
 
