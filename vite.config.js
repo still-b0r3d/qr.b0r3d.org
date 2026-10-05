@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
@@ -22,6 +23,58 @@ function buildCommit() {
   }
 }
 
+// Content-Security-Policy for the built page, as a <meta> tag so every copy of
+// the build (the live site, `vite preview`, the verify scripts) runs under it.
+// frame-ancestors can't go in a <meta>, so public/_headers sends that one.
+// Inline scripts (the dark-mode one in index.html) are allowed by their hash,
+// worked out here so an edit can't silently break the page.
+const CSP_SOURCES = {
+  'default-src': ["'self'"],
+  // 'wasm-unsafe-eval' lets WebAssembly (the barcode maker and reader)
+  // compile; it doesn't allow eval(). Cloudflare injects b0r3d.org's
+  // visitor-stats beacon into the live page.
+  'script-src': ["'self'", "'wasm-unsafe-eval'", 'https://static.cloudflareinsights.com'],
+  // Vue sets inline style attributes, and some UI parts add <style> tags.
+  'style-src': ["'self'", "'unsafe-inline'"],
+  // Logos can come from any https address the visitor types in.
+  'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+  'font-src': ["'self'", 'data:'],
+  // Fetching a typed-in logo address, and the visitor-stats beacon.
+  'connect-src': ["'self'", 'https:', 'data:', 'blob:'],
+  // qr-scanner runs its decoder in a worker made from a blob: URL.
+  'worker-src': ["'self'", 'blob:'],
+  'media-src': ["'self'", 'blob:'],
+  'manifest-src': ["'self'"],
+  'object-src': ["'none'"],
+  'base-uri': ["'self'"],
+  'form-action': ["'self'"]
+}
+
+function contentSecurityPolicy() {
+  return {
+    name: 'b0r3d-content-security-policy',
+    apply: 'build',
+    enforce: 'post',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html) {
+        const inline = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+        const hashes = inline.map(
+          ([, code]) => `'sha256-${createHash('sha256').update(code).digest('base64')}'`
+        )
+        const sources = { ...CSP_SOURCES, 'script-src': [...CSP_SOURCES['script-src'], ...hashes] }
+        const policy = Object.entries(sources)
+          .map(([directive, values]) => `${directive} ${values.join(' ')}`)
+          .join('; ')
+        return html.replace(
+          /<head>/,
+          `<head>\n  <meta http-equiv="Content-Security-Policy" content="${policy}">`
+        )
+      }
+    }
+  }
+}
+
 export default defineConfig(({ mode }) => {
   // Load environment variables
   const env = loadEnv(mode, '.', '')
@@ -39,11 +92,15 @@ export default defineConfig(({ mode }) => {
       // Make BASE_PATH available to client-side code through import.meta.env
       'import.meta.env.BASE_PATH': JSON.stringify(base),
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(version),
-      'import.meta.env.VITE_BUILD_COMMIT': JSON.stringify(buildCommit())
+      'import.meta.env.VITE_BUILD_COMMIT': JSON.stringify(buildCommit()),
+      // vue-i18n compiles messages without new Function(), which the
+      // Content-Security-Policy doesn't allow.
+      __INTLIFY_JIT_COMPILATION__: true
     },
     plugins: [
       vue(),
       vueJsx(),
+      contentSecurityPolicy(),
       VitePWA({
         registerType: 'autoUpdate',
         base: base, // Make sure PWA respects the base path

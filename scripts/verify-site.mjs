@@ -41,6 +41,18 @@ async function run(base) {
   })
   const requests = []
   context.on('request', (r) => requests.push(r.url()))
+  // Anything the Content-Security-Policy blocks, from the page or its workers.
+  const cspViolations = []
+  await context.addInitScript(() => {
+    document.addEventListener('securitypolicyviolation', (e) =>
+      console.error(`CSP violation: ${e.violatedDirective} blocked ${e.blockedURI}`)
+    )
+  })
+  context.on('console', (m) => {
+    if (/CSP violation|Content Security Policy|Refused to/i.test(m.text())) {
+      cspViolations.push(m.text())
+    }
+  })
   const page = await context.newPage()
   const pageErrors = []
   page.on('pageerror', (e) => pageErrors.push(e.message))
@@ -272,6 +284,12 @@ async function run(base) {
   } finally {
     await browser.close()
   }
+
+  check(
+    'nothing blocked by the Content-Security-Policy',
+    cspViolations.length === 0,
+    cspViolations.slice(0, 3).join(' | ')
+  )
 
   // b0r3d.org's visitor stats are switched on for the whole domain, so the live
   // site gets this beacon injected. It isn't part of the app and is kept on
