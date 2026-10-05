@@ -33,18 +33,25 @@ async function cupOnCanvas(width, height, scale, background) {
     .toBuffer()
 }
 
-// Palette PNG keeps the logo around 17 KB, small enough to live in the bundle
-// as a data URI. A data URI (rather than an asset URL) keeps exported SVGs
-// self-contained when they are opened outside the browser.
-async function writeCupPreset() {
-  const png = await sharp(SOURCE)
-    .resize(256, 256, { fit: 'contain', background: CLEAR })
-    .png({ palette: true, quality: 90, compressionLevel: 9, effort: 10 })
-    .toBuffer()
-  const outFile = 'src/assets/presets/b0r3d-cup-logo.json'
-  const json = { image: `data:image/png;base64,${png.toString('base64')}` }
-  fs.writeFileSync(outFile, JSON.stringify(json, null, 2) + '\n')
-  console.log(`Generated ${outFile} (${png.length} bytes of PNG)`)
+// Preset logos. Palette PNGs keep each one small enough (~17 KB) to live in
+// the bundle as a data URI. A data URI (rather than an asset URL) keeps
+// exported SVGs self-contained when they are opened outside the browser.
+const PRESET_LOGOS = [
+  { source: SOURCE, outFile: 'src/assets/presets/b0r3d-cup-logo.json' },
+  // Rukus the cat (the main site's favicon artwork).
+  { source: 'b0r3d-brand/rukus.png', outFile: 'src/assets/presets/rukus-logo.json' }
+]
+
+async function writePresetLogos() {
+  for (const { source, outFile } of PRESET_LOGOS) {
+    const png = await sharp(source)
+      .resize(256, 256, { fit: 'contain', background: CLEAR })
+      .png({ palette: true, quality: 90, compressionLevel: 9, effort: 10 })
+      .toBuffer()
+    const json = { image: `data:image/png;base64,${png.toString('base64')}` }
+    fs.writeFileSync(outFile, JSON.stringify(json, null, 2) + '\n')
+    console.log(`Generated ${outFile} (${png.length} bytes of PNG)`)
+  }
 }
 
 // Small cup shown next to the page title (displayed at up to 48px, 2x).
@@ -147,7 +154,7 @@ async function writeOgImage() {
 }
 
 async function main() {
-  await writeCupPreset()
+  await writePresetLogos()
   await writeHeaderCup()
   await writeFavicon()
   await writeAppIcons()

@@ -17,7 +17,7 @@ import { chromium } from 'playwright'
 import { decodePng, outputDir, withSite } from './lib/verify-helpers.mjs'
 
 const DEFAULT_DATA = 'https://b0r3d.org'
-const PRESETS = ['Rounded', 'Dots', 'b0r3d Cup', 'Plain']
+const PRESETS = ['Rounded', 'Dots', 'b0r3d Cup', 'Rukus', 'Plain']
 
 async function run(base) {
   const out = outputDir('verify-site')

@@ -1,5 +1,6 @@
 import { isValidFrameConfig } from './framePresets'
 import B0r3dCupLogo from '@/assets/presets/b0r3d-cup-logo.json'
+import RukusLogo from '@/assets/presets/rukus-logo.json'
 import PlainConfig from '@/assets/presets/plain.json'
 import type { DrawType, Options as StyledQRCodeProps } from '@/lib/qr-code'
 
@@ -82,7 +83,28 @@ export const b0r3dCupPreset = {
   qrOptions: { errorCorrectionLevel: 'H' }
 } as Preset
 
-export const builtInPresets: Preset[] = [plainPreset, roundedPreset, dotsPreset, b0r3dCupPreset]
+// Rukus the cat, in his grey with a nose-pink centre in each corner.
+export const rukusPreset = {
+  ...defaultPresetOptions,
+  name: 'Rukus',
+  data: 'https://b0r3d.org',
+  image: RukusLogo.image,
+  margin: 4,
+  dotsOptions: { color: '#2b2b2b', type: 'rounded' },
+  cornersSquareOptions: { color: '#2b2b2b', type: 'extra-rounded' },
+  cornersDotOptions: { color: '#c0396b', type: 'dot' },
+  imageOptions: { margin: 4 },
+  style: { borderRadius: '16px', background: '#ffffff' },
+  qrOptions: { errorCorrectionLevel: 'H' }
+} as Preset
+
+export const builtInPresets: Preset[] = [
+  plainPreset,
+  roundedPreset,
+  dotsPreset,
+  b0r3dCupPreset,
+  rukusPreset
+]
 
 function parsePresetsFromEnv(envVal?: string): Preset[] | undefined {
   if (!envVal) return undefined

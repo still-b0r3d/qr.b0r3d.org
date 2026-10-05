@@ -122,9 +122,12 @@ describe('built-in presets', () => {
     }
   })
 
-  it('include a b0r3d cup preset with an embedded logo', () => {
-    const cup = findPresetByName(builtInPresets, 'b0r3d Cup')
-    expect(cup?.image).toMatch(/^data:image\/png;base64,/)
+  it('include the b0r3d Cup and Rukus presets with embedded logos', () => {
+    for (const name of ['b0r3d Cup', 'Rukus']) {
+      expect(findPresetByName(builtInPresets, name)?.image, name).toMatch(
+        /^data:image\/png;base64,/
+      )
+    }
   })
 
   it('start with the plain black-on-white preset, with a quiet zone', () => {
