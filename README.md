@@ -154,7 +154,7 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
   Windows-1252, are read correctly; the Scan page no longer adds a paste
   listener on every visit.
 - **Lighter page** (2026-10-05). The scanner and JSZip load only when used:
-  the main script is 615 KB instead of 1,058 KB (216 KB gzipped instead of
+  the main script is 627 KB instead of 1,058 KB (220 KB gzipped instead of
   348 KB).
 - **Content-Security-Policy** (2026-10-05). The built page carries a policy
   that only allows scripts from this site (plus the visitor-stats beacon), so
