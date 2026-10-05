@@ -2209,7 +2209,7 @@ const updateDataFromModal = (newData: string) => {
                     v-model:value="selectedPresetKey"
                     v-model:open="isPresetSelectOpen"
                     :button-label="t('Select QR code preset')"
-                    :insert-divider-at-indexes="[0, 2]"
+                    :insert-divider-at-indexes="[0]"
                   />
                   <button
                     class="button grid size-10 place-items-center"
