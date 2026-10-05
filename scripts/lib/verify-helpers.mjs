@@ -4,11 +4,12 @@ import fs from 'fs'
 import net from 'net'
 import path from 'path'
 import process from 'process'
+import { fileURLToPath } from 'url'
 import jsQR from 'jsqr'
 import { PNG } from 'pngjs'
 import sharp from 'sharp'
 
-export const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..')
+export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 /** A fresh output folder under test-results/ (git-ignored). */
 export function outputDir(name) {
