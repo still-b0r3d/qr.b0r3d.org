@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { isVCardStructure, parseCSV, validateCSVData, type CSVData } from './csv'
+import {
+  detectDelimiter,
+  isVCardStructure,
+  parseCSV,
+  readCSVFile,
+  splitCSVLine,
+  validateCSVData,
+  type CSVData
+} from './csv'
 
 describe('CSV Utility Functions', () => {
   describe('isVCardStructure', () => {
@@ -302,5 +310,59 @@ Jane,Smith,jane@example.com,XYZ Inc,Manager`
       ]
       expect(validateCSVData(mixedData)).toBe(true)
     })
+  })
+})
+
+describe('CSV separators and quoting', () => {
+  it('reads semicolon-separated files, as spreadsheet apps write them in much of Europe', () => {
+    const result = parseCSV('url;frameText;fileName\nhttps://b0r3d.org/a;Hallo, Welt;datei\n')
+    expect(result.isValid).toBe(true)
+    expect(result.data).toEqual([
+      {
+        url: 'https://b0r3d.org/a',
+        frameText: 'Hallo, Welt',
+        fileName: 'datei',
+        frameFontFamily: undefined
+      }
+    ])
+  })
+
+  it('reads semicolon-separated vCard files', () => {
+    const result = parseCSV('firstName;lastName;org\nJürgen;Müller;"ACME; Inc"\n')
+    expect(result.data[0]).toMatchObject({
+      firstName: 'Jürgen',
+      lastName: 'Müller',
+      org: 'ACME; Inc'
+    })
+  })
+
+  it('reads tab-separated files', () => {
+    expect(parseCSV('url\tframeText\nhttps://b0r3d.org\tHi, there').data[0]).toMatchObject({
+      url: 'https://b0r3d.org',
+      frameText: 'Hi, there'
+    })
+  })
+
+  it('keeps doubled quotes inside quoted values as quotes', () => {
+    const result = parseCSV('url,frameText\nhttps://b0r3d.org,"Say ""hi"", then scan"')
+    expect(result.data[0]).toMatchObject({ frameText: 'Say "hi", then scan' })
+  })
+
+  it('splits lines and detects separators directly', () => {
+    expect(splitCSVLine('a;"b;c";d', ';')).toEqual(['a', 'b;c', 'd'])
+    expect(detectDelimiter('url,frameText')).toBe(',')
+    expect(detectDelimiter('url;frameText')).toBe(';')
+    expect(detectDelimiter('url')).toBe(',')
+  })
+})
+
+describe('readCSVFile', () => {
+  it('reads UTF-8, and Windows-1252 from spreadsheet apps, without garbling accents', async () => {
+    const utf8 = new Blob([new TextEncoder().encode('url;frameText\nx;Grüße')])
+    expect(await readCSVFile(utf8)).toBe('url;frameText\nx;Grüße')
+    // "Grüße" in Windows-1252 (Node decodes this label as Latin-1, so the
+    // test sticks to letters both share; browsers also map 0x80-0x9f, e.g. €)
+    const cp1252 = new Blob([new Uint8Array([0x47, 0x72, 0xfc, 0xdf, 0x65])])
+    expect(await readCSVFile(cp1252)).toBe('Grüße')
   })
 })

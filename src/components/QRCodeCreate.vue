@@ -49,7 +49,7 @@ import {
   getPngElement
 } from '@/utils/convertToImage'
 import { downloadBlob } from '@/utils/download'
-import { parseCSV, validateCSVData, type CSVParsingResult } from '@/utils/csv'
+import { parseCSV, readCSVFile, validateCSVData, type CSVParsingResult } from '@/utils/csv'
 import { generateBatchExportFilename, processCsvDataForBatch } from '@/utils/csvBatchProcessing'
 import { getNumericCSSValue } from '@/utils/formatting'
 import FitScaleBox from '@/components/FitScaleBox.vue'
@@ -94,7 +94,7 @@ import {
   type SimpleFieldKey
 } from '@/utils/simpleModeFields'
 import { useMediaQuery } from '@vueuse/core'
-import JSZip from 'jszip'
+import type JSZip from 'jszip'
 import TextExportModal from '@/components/TextExportModal.vue'
 import {
   buildMatrix,
@@ -343,10 +343,14 @@ watch(
   includeBackground,
   (newIncludeBackground) => {
     if (!newIncludeBackground) {
-      lastBackground.value = styleBackground.value
+      if (styleBackground.value !== 'transparent') lastBackground.value = styleBackground.value
       styleBackground.value = 'transparent'
-    } else {
-      styleBackground.value = lastBackground.value
+    } else if (styleBackground.value === 'transparent') {
+      // A preset or saved config may have set a colour already; only fill in
+      // when there is none. A config saved without a background has no
+      // colour to go back to, so it gets white.
+      styleBackground.value =
+        lastBackground.value !== 'transparent' ? lastBackground.value : '#ffffff'
     }
   },
   {
@@ -1299,56 +1303,50 @@ const onBatchInputFileUpload = (event: Event) => {
   }
 
   inputFileForBatchEncoding.value = file
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    const content = e.target?.result
-    if (typeof content !== 'string') {
-      isValidCsv.value = false
-      return
-    }
-
-    const result = parseCSV(content)
-    parsedCsvResult.value = result
-    if (!result.isValid) {
-      isValidCsv.value = false
-      return
-    }
-
-    if (!validateCSVData(result.data)) {
-      isValidCsv.value = false
-      return
-    }
-
-    // Process CSV data using the utility function
-    const batchResult = processCsvDataForBatch(result.data)
-
-    dataStringsFromCsv.value = batchResult.urls
-    frameTextsFromCsv.value = batchResult.frameTexts
-    fileNamesFromCsv.value = batchResult.fileNames
-    fontFamiliesFromCsv.value = batchResult.fontFamilies
-    showFrame.value = batchResult.hasCustomFrameText
-    isValidCsv.value = true
-    previewRowIndex.value = 0 // Reset preview to first row on new upload
-
-    // Update the QR code preview with the first row's data
-    if (batchResult.urls.length > 0) {
-      data.value = batchResult.urls[0]
-      frameText.value = batchResult.frameTexts[0] || defaultFrameText.value
-      const firstFontFamily = batchResult.fontFamilies[0]
-      if (firstFontFamily) {
-        onFontFamilyChange(firstFontFamily)
+  readCSVFile(file).then(
+    (content) => {
+      const result = parseCSV(content)
+      parsedCsvResult.value = result
+      if (!result.isValid) {
+        isValidCsv.value = false
+        return
       }
+
+      if (!validateCSVData(result.data)) {
+        isValidCsv.value = false
+        return
+      }
+
+      // Process CSV data using the utility function
+      const batchResult = processCsvDataForBatch(result.data)
+
+      dataStringsFromCsv.value = batchResult.urls
+      frameTextsFromCsv.value = batchResult.frameTexts
+      fileNamesFromCsv.value = batchResult.fileNames
+      fontFamiliesFromCsv.value = batchResult.fontFamilies
+      showFrame.value = batchResult.hasCustomFrameText
+      isValidCsv.value = true
+      previewRowIndex.value = 0 // Reset preview to first row on new upload
+
+      // Update the QR code preview with the first row's data
+      if (batchResult.urls.length > 0) {
+        data.value = batchResult.urls[0]
+        frameText.value = batchResult.frameTexts[0] || defaultFrameText.value
+        const firstFontFamily = batchResult.fontFamilies[0]
+        if (firstFontFamily) {
+          onFontFamilyChange(firstFontFamily)
+        }
+      }
+    },
+    () => {
+      isValidCsv.value = false
     }
-  }
-
-  reader.readAsText(file)
+  )
 }
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const usedFilenames = new Set<string>()
 const createZipFile = (
-  zip: typeof JSZip,
+  zip: JSZip,
   dataUrl: string,
   index: number,
   format: 'png' | 'svg' | 'jpg'
@@ -1375,23 +1373,36 @@ const createZipFile = (
     zip.file(`${sanitizedFileName}.${format}`, dataUrl)
   }
 }
+/**
+ * Puts one CSV row into the editor and waits until the export input (and the
+ * framed preview it is measured from) reflects it. The typing debounce is
+ * skipped, so rows render as fast as the browser can draw them.
+ */
+async function showBatchRow(index: number) {
+  const rowData = dataStringsFromCsv.value[index]
+  if (rowData === undefined) return
+  data.value = rowData
+  frameText.value = frameTextsFromCsv.value[index] || defaultFrameText.value
+  const fontFamily = fontFamiliesFromCsv.value[index]
+  if (fontFamily) await onFontFamilyChange(fontFamily)
+  await nextTick()
+  // The data watcher has started its debounce timer by now; skip it.
+  clearTimeout(dataDebounceTimer)
+  debouncedData.value = rowData
+  await nextTick()
+  if (showFrame.value) await new Promise((resolve) => requestAnimationFrame(resolve))
+}
+
 async function generateBatchQRCodes(format: 'png' | 'svg' | 'jpg') {
   isExportingBatchQRs.value = true
-  const zip = new JSZip()
-  let numQrCodesCreated = 0
+  const previewIndex = previewRowIndex.value
 
   try {
+    const { default: JSZip } = await import('jszip')
+    const zip = new JSZip()
     for (let index = 0; index < dataStringsFromCsv.value.length; index++) {
       currentExportedQrCodeIndex.value = index
-      const url = dataStringsFromCsv.value[index]
-      const currentFrameText = frameTextsFromCsv.value[index]
-      const currentFontFamily = fontFamiliesFromCsv.value[index]
-      data.value = url
-      frameText.value = currentFrameText
-      if (currentFontFamily !== undefined) {
-        await onFontFamilyChange(currentFontFamily)
-      }
-      await sleep(1000)
+      await showBatchRow(index)
       let dataUrl: string = ''
       if (format === 'png') {
         dataUrl = await getPngElement(buildImageExportInput())
@@ -1401,22 +1412,18 @@ async function generateBatchQRCodes(format: 'png' | 'svg' | 'jpg') {
         dataUrl = await getInlinedSvgString(buildSvgExportInput())
       }
       createZipFile(zip, dataUrl, index, format)
-      numQrCodesCreated++
     }
 
-    while (numQrCodesCreated !== dataStringsFromCsv.value.length) {
-      await sleep(100)
-    }
-
-    zip.generateAsync({ type: 'blob' }).then((content) => {
-      downloadBlob(content, 'qr-codes.zip')
-      isBatchExportSuccess.value = true
-    })
+    const content = await zip.generateAsync({ type: 'blob' })
+    downloadBlob(content, 'qr-codes.zip')
+    isBatchExportSuccess.value = true
   } catch (error) {
     console.error('Error generating batch QR codes', error)
     isBatchExportSuccess.value = false
   } finally {
     resetBatchExportProgress()
+    // Leave the editor on the row that was being previewed.
+    await showBatchRow(previewIndex)
   }
 }
 // #endregion

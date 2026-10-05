@@ -37,15 +37,57 @@ export interface CSVParsingResult {
 }
 
 /**
+ * Picks the column separator from the header row: commas, or the semicolons
+ * (or tabs) that spreadsheet apps write in much of Europe.
+ */
+export const detectDelimiter = (header: string): ',' | ';' | '\t' => {
+  const counts = { ',': 0, ';': 0, '\t': 0 }
+  let insideQuotes = false
+  for (const char of header) {
+    if (char === '"') insideQuotes = !insideQuotes
+    else if (!insideQuotes && char in counts) counts[char as keyof typeof counts]++
+  }
+  if (counts[';'] > counts[','] && counts[';'] >= counts['\t']) return ';'
+  if (counts['\t'] > counts[',']) return '\t'
+  return ','
+}
+
+/**
+ * Splits one CSV row into trimmed values. Separators inside double quotes
+ * are kept, and "" inside quotes is a literal quote.
+ */
+export const splitCSVLine = (line: string, delimiter = ','): string[] => {
+  const values: string[] = []
+  let currentValue = ''
+  let insideQuotes = false
+  const finish = () => values.push(currentValue.trim().replace(/^'|'$/g, ''))
+  for (let j = 0; j < line.length; j++) {
+    const char = line[j]
+    if (char === '"') {
+      if (insideQuotes && line[j + 1] === '"') {
+        currentValue += '"'
+        j++
+      } else {
+        insideQuotes = !insideQuotes
+      }
+    } else if (char === delimiter && !insideQuotes) {
+      finish()
+      currentValue = ''
+    } else {
+      currentValue += char
+    }
+  }
+  finish()
+  return values
+}
+
+/**
  * Validates if the CSV header indicates a vCard structure
  * @param header The CSV header row
  * @returns boolean indicating if the CSV is a vCard structure
  */
-export const isVCardStructure = (header: string): boolean => {
-  const headers = header
-    .toLowerCase()
-    .split(',')
-    .map((h) => h.trim())
+export const isVCardStructure = (header: string, delimiter = detectDelimiter(header)): boolean => {
+  const headers = splitCSVLine(header.toLowerCase(), delimiter)
   return headers.includes('firstname') && headers.includes('lastname')
 }
 
@@ -104,30 +146,16 @@ export const parseCSV = (csvContent: string): CSVParsingResult => {
     }
 
     const header = lines[0].toLowerCase()
-    const headers = header.split(',').map((h) => h.trim().toLowerCase())
-    const isVCard = isVCardStructure(header)
+    const delimiter = detectDelimiter(header)
+    const headers = splitCSVLine(header, delimiter).map((h) => h.toLowerCase())
+    const isVCard = isVCardStructure(header, delimiter)
     const startIndex = 1
     const data: CSVData[] = []
 
     if (isVCard) {
       for (let i = startIndex; i < lines.length; i++) {
         // Split by comma but respect quoted values
-        const values: string[] = []
-        let currentValue = ''
-        let insideQuotes = false
-
-        for (let j = 0; j < lines[i].length; j++) {
-          const char = lines[i][j]
-          if (char === '"') {
-            insideQuotes = !insideQuotes
-          } else if (char === ',' && !insideQuotes) {
-            values.push(currentValue.trim().replace(/^["']|["']$/g, ''))
-            currentValue = ''
-          } else {
-            currentValue += char
-          }
-        }
-        values.push(currentValue.trim().replace(/^["']|["']$/g, ''))
+        const values = splitCSVLine(lines[i], delimiter)
 
         const vCardData: Partial<VCardCSVData> = {
           firstName: values[headers.indexOf('firstname')] || '',
@@ -176,23 +204,8 @@ export const parseCSV = (csvContent: string): CSVParsingResult => {
     } else {
       // Handle simple URL/text structure
       for (let i = startIndex; i < lines.length; i++) {
-        // Split by comma but respect quoted values
-        const values: string[] = []
-        let currentValue = ''
-        let insideQuotes = false
-
-        for (let j = 0; j < lines[i].length; j++) {
-          const char = lines[i][j]
-          if (char === '"') {
-            insideQuotes = !insideQuotes
-          } else if (char === ',' && !insideQuotes) {
-            values.push(currentValue.trim().replace(/^["']|["']$/g, ''))
-            currentValue = ''
-          } else {
-            currentValue += char
-          }
-        }
-        values.push(currentValue.trim().replace(/^["']|["']$/g, ''))
+        // Split by the separator but respect quoted values
+        const values = splitCSVLine(lines[i], delimiter)
 
         const [url, frameText, fileName] = values
         const frameFontFamilyIndex = headers.indexOf('framefontfamily')
@@ -228,4 +241,18 @@ export const validateCSVData = (data: CSVData[]): boolean => {
       return row.url && row.url.trim() !== ''
     }
   })
+}
+
+/**
+ * Reads a CSV file as text. Files are expected in UTF-8, but spreadsheet
+ * apps in much of Europe save "CSV" in Windows-1252; those are decoded as
+ * such instead of turning every accented letter into "�".
+ */
+export async function readCSVFile(file: Blob): Promise<string> {
+  const bytes = await file.arrayBuffer()
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes)
+  }
 }
