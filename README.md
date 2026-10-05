@@ -12,6 +12,8 @@ your device, and the page loads nothing from any other site.
 - Export to PNG, JPG, SVG and plain-text QR codes, or copy to the clipboard
 - Batch export from a CSV file
 - Frames with captions, logos, colours and dot styles; save and load settings
+- Compact encoding (numbers and capitals take fewer modules) and an optional
+  fixed size, so every code in a batch matches
 - Scan codes from an image, the clipboard or the camera
 - Installs as an offline app; available in 30+ languages
 
@@ -61,10 +63,17 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
   in `.node-version`, response headers (caching and security) in
   `public/_headers`. The service worker no longer precaches fonts, start-up
   images or screenshots.
+- **Encoding.** ASCII text is split into numeric, alphanumeric and byte
+  segments, whichever is shortest, so numbers, IDs and capitals produce
+  smaller codes; text with non-ASCII characters is encoded exactly as before.
+  A new "Size (QR version)" setting fixes the version (1-40) so batch exports
+  come out the same size, growing only when the data doesn't fit.
 - **Fixes.** The seven type errors in upstream's `vue-tsc` check are fixed, and
   tests were added for the local presets and fonts.
 - **Repository.** Upstream's GitHub workflows, Docker and nginx files,
   contributor docs and translation-service config were not carried over.
+
+Ideas under consideration are in [TODO.md](TODO.md).
 
 ## Development
 
