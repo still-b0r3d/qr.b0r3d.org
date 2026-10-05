@@ -203,3 +203,19 @@ END:VCARD`
     })
   })
 })
+
+describe('processCsvDataForBatch vCard versions', () => {
+  const row = (version?: string) =>
+    processCsvDataForBatch([{ firstName: 'Ann', lastName: 'Lee', version }]).urls[0]
+
+  it('writes the version the CSV asks for, however it is written', () => {
+    expect(row('4.0')).toContain('VERSION:4.0')
+    expect(row('4')).toContain('VERSION:4.0')
+    expect(row('2.1')).toContain('VERSION:2.1')
+    expect(row('3.0')).toContain('VERSION:3.0')
+  })
+
+  it('defaults to 3.0', () => {
+    expect(row(undefined)).toContain('VERSION:3.0')
+  })
+})

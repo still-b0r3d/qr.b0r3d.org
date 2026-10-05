@@ -96,7 +96,12 @@ const vCardFields: Array<{
   { name: 'city', required: false, description: 'City', example: 'San Francisco' },
   { name: 'state', required: false, description: 'State/Province', example: 'CA' },
   { name: 'country', required: false, description: 'Country', example: 'USA' },
-  { name: 'version', required: false, description: 'vCard version', example: '4.0' },
+  {
+    name: 'version',
+    required: false,
+    description: 'vCard version: 2.1, 3.0 (default) or 4.0',
+    example: '4.0'
+  },
   {
     name: 'frameText',
     required: false,

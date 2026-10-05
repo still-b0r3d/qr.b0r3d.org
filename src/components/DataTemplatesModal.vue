@@ -61,7 +61,7 @@ const vcardZipcode = ref('')
 const vcardCity = ref('')
 const vcardState = ref('')
 const vcardCountry = ref('')
-const vcardVersion = ref('2')
+const vcardVersion = ref('3')
 
 // Location refs
 const locationLatitude = ref<number | string>('')

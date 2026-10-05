@@ -13,7 +13,10 @@ import {
   detectDataType,
   escapeVCard,
   escapeWiFi,
-  escapeICal
+  escapeICal,
+  iCalDateToLocalInput,
+  isValidIban,
+  normalizeVCardVersion
 } from './dataEncoding'
 
 describe('Data Encoding Functions', () => {
@@ -84,7 +87,13 @@ describe('Data Encoding Functions', () => {
       'WIFI:T:WPA;S:MyNet;P:pass\\;123\\";;'
     ) // Escaping
     expect(generateWifiData({ ssid: 'MyNet', encryption: 'nopass' })).toBe(
-      'WIFI:T:nopass;S:MyNet;;;'
+      'WIFI:T:nopass;S:MyNet;;'
+    )
+    expect(generateWifiData({ ssid: 'MyNet', encryption: 'nopass', hidden: true })).toBe(
+      'WIFI:T:nopass;S:MyNet;H:true;;'
+    )
+    expect(generateWifiData({ ssid: 'MyNet', encryption: 'SAE', password: 'pass123' })).toBe(
+      'WIFI:T:SAE;S:MyNet;P:pass123;;'
     )
     expect(
       generateWifiData({ ssid: 'HiddenNet', encryption: 'WPA', password: 'abc', hidden: true })
@@ -420,7 +429,7 @@ describe('Data Type Detection Functions', () => {
     const result = detectDataType('WIFI:T:WPA;S:MyNetwork;P:password123;H:true;;')
     expect(result.type).toBe('wifi')
     expect(result.parsedData.ssid).toBe('MyNetwork')
-    expect(result.parsedData.encryption).toBe('wpa')
+    expect(result.parsedData.encryption).toBe('WPA')
     expect(result.parsedData.password).toBe('password123')
     expect(result.parsedData.hidden).toBe(true)
   })
@@ -511,8 +520,15 @@ END:VCALENDAR`
     expect(result.type).toBe('event')
     expect(result.parsedData.title).toBe('Team Meeting')
     expect(result.parsedData.location).toBe('Conference Room A')
-    expect(result.parsedData.startTime).toContain('2024-01-15T10:00:00')
-    expect(result.parsedData.endTime).toContain('2024-01-15T11:00:00')
+    // UTC times come back in local time, the way the form's date fields show them.
+    const local = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+        d.getDate()
+      ).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(
+        d.getMinutes()
+      ).padStart(2, '0')}`
+    expect(result.parsedData.startTime).toBe(local(new Date(Date.UTC(2024, 0, 15, 10, 0))))
+    expect(result.parsedData.endTime).toBe(local(new Date(Date.UTC(2024, 0, 15, 11, 0))))
   })
 
   it('detectDataType identifies EPC QR (SEPA payment) data', () => {
@@ -590,5 +606,162 @@ describe('Escape Functions', () => {
       expect(escapeICal('12345')).toBe('12345')
       expect(escapeICal('test@example.com')).toBe('test@example.com')
     })
+  })
+})
+
+// Opening the Data templates editor on existing data parses it into the form;
+// generating again must give back the same data, not a damaged copy.
+describe('Round trips through detectDataType', () => {
+  it('keeps Wi-Fi values with escaped characters and the security type', () => {
+    const input = { ssid: 'Cafe;Net, "5G"', encryption: 'WPA' as const, password: 'a;b:c\\d' }
+    const parsed = detectDataType(generateWifiData(input)).parsedData
+    expect(parsed).toEqual({ ...input, hidden: false })
+    expect(generateWifiData(parsed as never)).toBe(generateWifiData(input))
+  })
+
+  it('reads Wi-Fi fields in any order and maps security types to the form options', () => {
+    expect(detectDataType('WIFI:S:Net;T:WPA2;P:x;;').parsedData).toMatchObject({
+      ssid: 'Net',
+      encryption: 'WPA',
+      password: 'x'
+    })
+    expect(detectDataType('WIFI:T:WEP;S:Net;P:x;;').parsedData.encryption).toBe('WEP')
+    expect(detectDataType('WIFI:T:SAE;S:Net;P:x;;').parsedData.encryption).toBe('SAE')
+    expect(detectDataType('WIFI:S:Open;;').parsedData.encryption).toBe('nopass')
+    expect(detectDataType('WIFI:T:WPA;S:"1234";P:"abcd";;').parsedData).toMatchObject({
+      ssid: '1234',
+      password: 'abcd'
+    })
+    expect(detectDataType('WIFI:T:nopass;S:Hidden;H:true;;').parsedData.hidden).toBe(true)
+  })
+
+  it('keeps the whole SMS message, colons included', () => {
+    const data = generateSmsData({ phone: '+15550100', message: 'Meet at 10:30: room 2' })
+    expect(detectDataType(data).parsedData).toEqual({
+      phone: '+15550100',
+      message: 'Meet at 10:30: room 2'
+    })
+    expect(detectDataType('smsto:+1:hi').parsedData).toEqual({ phone: '+1', message: 'hi' })
+    expect(detectDataType('SMS:+1?body=hi%20there').parsedData).toEqual({
+      phone: '+1',
+      message: 'hi there'
+    })
+  })
+
+  it('unescapes vCard values so saving again adds no backslashes', () => {
+    const input = {
+      firstName: 'Ann',
+      lastName: 'Lee; Jr.',
+      org: 'Smith, Jones & Co',
+      position: 'Head\\Chief',
+      street: '1 Main St, Unit 2',
+      city: 'Town',
+      version: '3'
+    }
+    const data = generateVCardData(input)
+    const parsed = detectDataType(data).parsedData
+    expect(parsed).toMatchObject(input)
+    expect(generateVCardData(parsed as never)).toBe(data)
+  })
+
+  it('reads folded, grouped and quoted-printable vCard lines', () => {
+    const vcard = [
+      'BEGIN:VCARD',
+      'VERSION:2.1',
+      'N;CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE:M=C3=BCller;J=C3=BCrgen;;;',
+      'NOTE;ENCODING=QUOTED-PRINTABLE:first line=',
+      'second line',
+      'item1.EMAIL;TYPE=INTERNET:juergen@exam',
+      ' ple.com',
+      'END:VCARD'
+    ].join('\r\n')
+    expect(detectDataType(vcard).parsedData).toMatchObject({
+      lastName: 'Müller',
+      firstName: 'Jürgen',
+      email: 'juergen@example.com',
+      version: '2'
+    })
+  })
+
+  it('names a company card after the company and reads it back without a person', () => {
+    const data = generateVCardData({ org: 'b0r3d', email: 'hi@example.com' })
+    expect(data).toContain('FN:b0r3d')
+    const parsed = detectDataType(data).parsedData
+    expect(parsed.org).toBe('b0r3d')
+    expect(parsed.firstName).toBeUndefined()
+  })
+
+  it('marks non-ASCII vCard 2.1 values as UTF-8', () => {
+    expect(generateVCardData({ firstName: 'Zoë', lastName: 'Ng', version: '2' })).toContain(
+      'N;CHARSET=UTF-8:Ng;Zoë;;;'
+    )
+  })
+
+  it('gives event times back in the form fields own format', () => {
+    const data = generateEventData({
+      title: 'Party, upstairs; bring snacks',
+      location: 'Hall\nB',
+      startTime: '2026-10-31T19:00',
+      endTime: '2026-10-31T23:30'
+    })
+    expect(data).toMatch(/^UID:[0-9a-z]+@qr\.b0r3d\.org$/m)
+    expect(detectDataType(data).parsedData).toEqual({
+      title: 'Party, upstairs; bring snacks',
+      location: 'Hall\nB',
+      startTime: '2026-10-31T19:00',
+      endTime: '2026-10-31T23:30'
+    })
+  })
+
+  it('reads all-day and floating event times as written', () => {
+    expect(iCalDateToLocalInput('20261031')).toBe('2026-10-31T00:00')
+    expect(iCalDateToLocalInput('20261031T190000')).toBe('2026-10-31T19:00')
+    expect(iCalDateToLocalInput('not a date')).toBe('')
+    expect(
+      detectDataType(
+        'BEGIN:VEVENT\nSUMMARY;LANGUAGE=en:Talk\nDTSTART;TZID=Europe/Berlin:20261031T190000\nEND:VEVENT'
+      ).parsedData
+    ).toMatchObject({ title: 'Talk', startTime: '2026-10-31T19:00' })
+  })
+
+  it('reads geo URIs with altitude or parameters', () => {
+    expect(detectDataType('geo:48.2,16.37,180;u=10').parsedData).toEqual({
+      latitude: '48.2',
+      longitude: '16.37'
+    })
+  })
+})
+
+describe('normalizeVCardVersion', () => {
+  it('accepts the ways a version is written', () => {
+    expect(normalizeVCardVersion('2.1')).toBe('2')
+    expect(normalizeVCardVersion('4.0')).toBe('4')
+    expect(normalizeVCardVersion('4')).toBe('4')
+    expect(normalizeVCardVersion('3.0')).toBe('3')
+    expect(normalizeVCardVersion(undefined)).toBe('3')
+    expect(normalizeVCardVersion('9')).toBe('3')
+  })
+})
+
+describe('isValidIban', () => {
+  it('accepts IBANs with correct check digits, with or without spaces', () => {
+    expect(isValidIban('DE89 3704 0044 0532 0130 00')).toBe(true)
+    expect(isValidIban('gb29nwbk60161331926819')).toBe(true)
+    expect(isValidIban('NL91ABNA0417164300')).toBe(true)
+  })
+
+  it('rejects typos and malformed input', () => {
+    expect(isValidIban('DE89 3704 0044 0532 0130 01')).toBe(false)
+    expect(isValidIban('DE98370400440532013000')).toBe(false)
+    expect(isValidIban('DE89')).toBe(false)
+    expect(isValidIban('')).toBe(false)
+  })
+})
+
+describe('generateEpcData amounts', () => {
+  it('accepts a decimal comma', () => {
+    expect(
+      generateEpcData({ name: 'Jane', iban: 'DE89370400440532013000', amount: '12,50' })
+    ).toContain('EUR12.50')
   })
 })

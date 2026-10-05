@@ -21,11 +21,45 @@ export const escapeVCard = (val: string): string => escapeSpecialChars(val, '\\,
 export const escapeWiFi = (val: string): string => escapeSpecialChars(val, '\\;,:"\'')
 
 /**
- * Escapes special characters for iCalendar format: \ , ;
+ * Escapes special characters for iCalendar format: \ , ; and line breaks
  * Based on RFC 5545 (iCalendar)
  * @see https://datatracker.ietf.org/doc/html/rfc5545
  */
-export const escapeICal = (val: string): string => escapeSpecialChars(val, '\\,;')
+export const escapeICal = (val: string): string =>
+  escapeSpecialChars(val, '\\,;').replace(/\r\n|\r|\n/g, '\\n')
+
+/**
+ * Undoes escapeVCard / escapeICal: `\,` `\;` `\:` `\\` become the character
+ * itself and `\n` (or `\N`) a line break.
+ */
+export const unescapeText = (val: string): string =>
+  val.replace(/\\([\\,;:nN])/g, (_, ch: string) => (ch === 'n' || ch === 'N' ? '\n' : ch))
+
+/** Undoes escapeWiFi: a backslash makes the next character literal. */
+export const unescapeWiFi = (val: string): string => val.replace(/\\([\s\S])/g, '$1')
+
+/**
+ * Splits `text` at every `separator` that isn't escaped with a backslash.
+ * Escapes are kept in the parts, so each part can be unescaped on its own.
+ */
+export const splitUnescaped = (text: string, separator: string): string[] => {
+  const parts: string[] = []
+  let current = ''
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (ch === '\\' && i + 1 < text.length) {
+      current += ch + text[i + 1]
+      i++
+    } else if (ch === separator) {
+      parts.push(current)
+      current = ''
+    } else {
+      current += ch
+    }
+  }
+  parts.push(current)
+  return parts
+}
 
 /**
  * Normalizes a string to a single line for use in a line-delimited format
@@ -56,6 +90,14 @@ const formatICalDateTime = (dateTime: string | Date): string => {
     console.error('Error formatting iCal date:', e)
     return ''
   }
+}
+
+/** A short random id for an event's UID, so calendars can tell events apart. */
+const randomId = (): string => {
+  const bytes = new Uint8Array(9)
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(bytes)
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256)
+  return Array.from(bytes, (b) => b.toString(36).padStart(2, '0')).join('')
 }
 
 // --- Data Type Generators ---
@@ -131,17 +173,23 @@ export const generateSmsData = (data: { phone: string; message?: string }): stri
 }
 
 /**
+ * Wi-Fi security types. 'WPA' covers WPA, WPA2 and WPA2/WPA3 mixed networks
+ * and is what nearly every network needs; 'SAE' is for WPA3-only networks.
+ */
+export type WifiEncryption = 'nopass' | 'WEP' | 'WPA' | 'SAE'
+
+/**
  * Generates a WiFi network string for WiFi QR codes
  * @param {object} data - WiFi data to encode
  * @param {string} data.ssid - Network name (SSID)
  * @param {string} [data.password] - Network password
- * @param {'nopass' | 'WEP' | 'WPA'} data.encryption - Security type (nopass, WEP, or WPA/WPA2)
+ * @param {WifiEncryption} data.encryption - Security type (nopass, WEP, WPA/WPA2 or SAE for WPA3 only)
  * @param {boolean} [data.hidden] - Whether the network is hidden (not broadcasting SSID)
  * @returns {string} - Formatted WiFi string
  */
 export const generateWifiData = (data: {
   ssid: string
-  encryption: 'nopass' | 'WEP' | 'WPA'
+  encryption: WifiEncryption
   password?: string
   hidden?: boolean
 }): string => {
@@ -151,11 +199,19 @@ export const generateWifiData = (data: {
   const hidden = data.hidden ? 'H:true;' : ''
 
   if (encryption === 'nopass') {
-    return `WIFI:T:nopass;S:${ssid};;${hidden};`
+    return `WIFI:T:nopass;S:${ssid};${hidden};`
   } else {
     const password = escapeWiFi(data.password || '')
     return `WIFI:T:${encryption};S:${ssid};P:${password};${hidden};`
   }
+}
+
+/** Maps a vCard version as written anywhere ('2.1', '4.0', '3', …) to '2', '3' or '4'. */
+export const normalizeVCardVersion = (version?: string): '2' | '3' | '4' => {
+  const v = (version ?? '').trim()
+  if (v === '2' || v === '2.1') return '2'
+  if (v === '4' || v === '4.0') return '4'
+  return '3'
 }
 
 /**
@@ -175,10 +231,8 @@ export const generateWifiData = (data: {
  * @param {string} [data.city] - City
  * @param {string} [data.state] - State/province
  * @param {string} [data.country] - Country
- * @param {string} [data.version] - vCard version to generate:
- *   - '2': Generates vCard 2.1 format (older, simplest format)
- *   - '3': Generates vCard 3.0 format (default, widely compatible)
- *   - '4': Generates vCard 4.0 format (newest standard with additional features)
+ * @param {string} [data.version] - vCard version to generate ('2' or '2.1', '3' or '3.0',
+ *   '4' or '4.0'). 3.0 is the default and the most widely understood.
  * @returns {string} - Formatted vCard string
  */
 export const generateVCardData = (data: {
@@ -201,23 +255,33 @@ export const generateVCardData = (data: {
   const lines: string[] = []
   lines.push('BEGIN:VCARD')
 
-  const version = data.version || '3'
+  const version = normalizeVCardVersion(data.version)
   lines.push(`VERSION:${version === '2' ? '2.1' : version === '4' ? '4.0' : '3.0'}`)
+
+  // vCard 2.1 assumes ASCII unless a property says otherwise, so readers
+  // that follow it garble accented and non-Latin names without this.
+  const push = (property: string, value: string) => {
+    const charset = version === '2' && /[^\x20-\x7e]/.test(value) ? ';CHARSET=UTF-8' : ''
+    lines.push(`${property}${charset}:${value}`)
+  }
 
   const firstName = escapeVCard(data.firstName || '')
   const lastName = escapeVCard(data.lastName || '')
   if (firstName || lastName) {
-    lines.push(`N:${lastName};${firstName};;;`)
-    lines.push(`FN:${firstName} ${lastName}`.trim())
+    push('N', `${lastName};${firstName};;;`)
+    push('FN', `${firstName} ${lastName}`.trim())
+  } else if (data.org) {
+    // FN is required from vCard 3.0 on; a company card is named after the company.
+    push('FN', escapeVCard(data.org))
   }
 
-  if (data.org) lines.push(`ORG:${escapeVCard(data.org)}`)
-  if (data.position) lines.push(`TITLE:${escapeVCard(data.position)}`)
+  if (data.org) push('ORG', escapeVCard(data.org))
+  if (data.position) push('TITLE', escapeVCard(data.position))
 
   // Format telephone entries based on vCard version
   if (data.phoneWork) {
     if (version === '2') {
-      lines.push(`TEL;WORK;VOICE:${escapeVCard(data.phoneWork)}`)
+      push('TEL;WORK;VOICE', escapeVCard(data.phoneWork))
     } else if (version === '4') {
       lines.push(`TEL;TYPE=work,voice;VALUE=uri:tel:${escapeVCard(data.phoneWork)}`)
     } else {
@@ -227,7 +291,7 @@ export const generateVCardData = (data: {
 
   if (data.phonePrivate) {
     if (version === '2') {
-      lines.push(`TEL;HOME;VOICE:${escapeVCard(data.phonePrivate)}`)
+      push('TEL;HOME;VOICE', escapeVCard(data.phonePrivate))
     } else if (version === '4') {
       lines.push(`TEL;TYPE=home,voice;VALUE=uri:tel:${escapeVCard(data.phonePrivate)}`)
     } else {
@@ -237,7 +301,7 @@ export const generateVCardData = (data: {
 
   if (data.phoneMobile) {
     if (version === '2') {
-      lines.push(`TEL;CELL;VOICE:${escapeVCard(data.phoneMobile)}`)
+      push('TEL;CELL;VOICE', escapeVCard(data.phoneMobile))
     } else if (version === '4') {
       lines.push(`TEL;TYPE=cell,voice;VALUE=uri:tel:${escapeVCard(data.phoneMobile)}`)
     } else {
@@ -248,7 +312,7 @@ export const generateVCardData = (data: {
   // Email format differs by version
   if (data.email) {
     if (version === '2') {
-      lines.push(`EMAIL;INTERNET:${escapeVCard(data.email)}`)
+      push('EMAIL;INTERNET', escapeVCard(data.email))
     } else if (version === '4') {
       lines.push(`EMAIL;TYPE=work:${escapeVCard(data.email)}`)
     } else {
@@ -261,7 +325,7 @@ export const generateVCardData = (data: {
     if (version === '4') {
       lines.push(`URL;TYPE=work:${escapeVCard(data.website)}`)
     } else {
-      lines.push(`URL:${escapeVCard(data.website)}`)
+      push('URL', escapeVCard(data.website))
     }
   }
 
@@ -276,7 +340,7 @@ export const generateVCardData = (data: {
   if (addressComponents.some((part) => part !== '')) {
     const adrString = `${street};${city};${state};${zipcode};${country}` // Construct the address parts string
     if (version === '2') {
-      lines.push(`ADR;WORK:;;${adrString}`)
+      push('ADR;WORK', `;;${adrString}`)
     } else if (version === '4') {
       lines.push(`ADR;TYPE=work:;;${adrString}`)
     } else {
@@ -336,8 +400,9 @@ export const generateEventData = (data: {
 
   if (dtStart) lines.push(`DTSTART:${dtStart}`)
   if (dtEnd) lines.push(`DTEND:${dtEnd}`)
-  // Optionally add DTSTAMP (creation timestamp)
+  // RFC 5545 requires both of these in every event.
   lines.push(`DTSTAMP:${formatICalDateTime(new Date())}`)
+  lines.push(`UID:${randomId()}@qr.b0r3d.org`)
 
   lines.push('END:VEVENT')
 
@@ -385,7 +450,8 @@ export const generateEpcData = (data: {
 
   let amount = ''
   if (data.amount !== undefined && data.amount !== '') {
-    const numericAmount = typeof data.amount === 'number' ? data.amount : parseFloat(data.amount)
+    const numericAmount =
+      typeof data.amount === 'number' ? data.amount : parseFloat(data.amount.replace(',', '.'))
     if (!isNaN(numericAmount) && numericAmount > 0) {
       amount = `EUR${numericAmount.toFixed(2)}`
     }
@@ -424,15 +490,253 @@ export const generateEpcData = (data: {
   return lines.join('\n')
 }
 
+/**
+ * Whether an IBAN's check digits are right (ISO 13616 mod-97). Catches nearly
+ * every typo, so a payment code can't silently point at the wrong account.
+ * Spaces and letter case don't matter.
+ */
+export const isValidIban = (value: string): boolean => {
+  const iban = value.replace(/\s+/g, '').toUpperCase()
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) return false
+  const rearranged = iban.slice(4) + iban.slice(0, 4)
+  let remainder = 0
+  for (const ch of rearranged) {
+    const digits = ch >= 'A' ? String(ch.charCodeAt(0) - 55) : ch
+    for (const d of digits) remainder = (remainder * 10 + Number(d)) % 97
+  }
+  return remainder === 1
+}
+
 // --- Data Detection ---
+
+export type DetectedDataType =
+  | 'text'
+  | 'url'
+  | 'email'
+  | 'phone'
+  | 'sms'
+  | 'wifi'
+  | 'vcard'
+  | 'location'
+  | 'event'
+  | 'epc'
+
+interface ContentLine {
+  /** Property name, upper case, without any group prefix ("item1."). */
+  name: string
+  /** Everything between the name and the colon, upper case (e.g. "TYPE=WORK,VOICE"). */
+  params: string
+  /** The raw (still escaped) value. */
+  value: string
+}
+
+/**
+ * Splits vCard / iCalendar text into content lines: unfolds continuation
+ * lines and separates each line's name, parameters and value.
+ */
+function parseContentLines(data: string): ContentLine[] {
+  const rawLines = data
+    .replace(/\r\n?/g, '\n')
+    .replace(/\n[ \t]/g, '')
+    .split('\n')
+  const result: ContentLine[] = []
+  for (let i = 0; i < rawLines.length; i++) {
+    let line = rawLines[i]
+    // vCard 2.1 quoted-printable values continue on the next line after a
+    // trailing "=" (a soft line break), without the usual leading space.
+    if (/^[^:]*QUOTED-PRINTABLE[^:]*:/i.test(line)) {
+      while (line.endsWith('=') && i + 1 < rawLines.length) line = line.slice(0, -1) + rawLines[++i]
+    }
+    const colon = line.indexOf(':')
+    if (colon <= 0) continue
+    const head = line.slice(0, colon)
+    const [rawName, ...params] = head.split(';')
+    result.push({
+      name: rawName.split('.').pop()!.trim().toUpperCase(),
+      params: params.join(';').toUpperCase(),
+      value: line.slice(colon + 1)
+    })
+  }
+  return result
+}
+
+/** Decodes vCard 2.1 quoted-printable text (`=C3=BC` → `ü`) as UTF-8. */
+function decodeQuotedPrintable(value: string): string {
+  const bytes: number[] = []
+  const text = value
+  for (let i = 0; i < text.length; i++) {
+    const hex = text[i] === '=' ? text.slice(i + 1, i + 3) : ''
+    if (/^[0-9A-Fa-f]{2}$/.test(hex)) {
+      bytes.push(parseInt(hex, 16))
+      i += 2
+    } else {
+      bytes.push(...new TextEncoder().encode(text[i]))
+    }
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes))
+}
+
+/** A content line's value with escapes (and any quoted-printable encoding) undone. */
+function textValue(line: ContentLine): string {
+  const raw = /QUOTED-PRINTABLE/.test(line.params) ? decodeQuotedPrintable(line.value) : line.value
+  return unescapeText(raw).trim()
+}
+
+/** A structured value (N, ADR) split into its unescaped components. */
+function componentValues(line: ContentLine): string[] {
+  const raw = /QUOTED-PRINTABLE/.test(line.params) ? decodeQuotedPrintable(line.value) : line.value
+  return splitUnescaped(raw, ';').map((part) => unescapeText(part).trim())
+}
+
+function parseWifi(data: string): Record<string, string | boolean> {
+  const fields: Record<string, string> = {}
+  for (const field of splitUnescaped(data.replace(/^WIFI:/i, ''), ';')) {
+    const colon = field.indexOf(':')
+    if (colon <= 0) continue
+    const key = field.slice(0, colon).trim().toUpperCase()
+    let value = field.slice(colon + 1)
+    // Values that could be mistaken for hex may be wrapped in double quotes.
+    if (
+      value.length >= 2 &&
+      value.startsWith('"') &&
+      value.endsWith('"') &&
+      !value.endsWith('\\"')
+    ) {
+      value = value.slice(1, -1)
+    }
+    if (!(key in fields)) fields[key] = unescapeWiFi(value)
+  }
+  const type = (fields.T ?? '').toUpperCase()
+  const encryption: WifiEncryption =
+    type === 'WEP' ? 'WEP' : type === 'SAE' ? 'SAE' : type.startsWith('WPA') ? 'WPA' : 'nopass'
+  return {
+    ssid: fields.S ?? '',
+    encryption,
+    password: fields.P ?? '',
+    hidden: (fields.H ?? '').toLowerCase() === 'true'
+  }
+}
+
+function parseSms(data: string): Record<string, string> {
+  const smsto = /^SMSTO:([^:]*)(?::([\s\S]*))?$/i.exec(data)
+  if (smsto) return { phone: smsto[1].trim(), message: smsto[2] ?? '' }
+  // sms:+123?body=Hello (RFC 5724)
+  const uri = /^sms:([^?]*)(?:\?([\s\S]*))?$/i.exec(data)
+  if (!uri) return { phone: '', message: '' }
+  const params = new URLSearchParams(uri[2] ?? '')
+  let phone = uri[1]
+  try {
+    phone = decodeURIComponent(phone)
+  } catch {
+    // keep it as written
+  }
+  return { phone: phone.trim(), message: params.get('body') ?? '' }
+}
+
+function parseVCard(data: string): Record<string, string> {
+  const parsed: Record<string, string> = {}
+  const lines = parseContentLines(data)
+  const first = (name: string) => lines.find((l) => l.name === name)
+
+  const versionLine = first('VERSION')
+  parsed.version = versionLine ? normalizeVCardVersion(versionLine.value) : '3'
+
+  const n = first('N')
+  if (n) {
+    const [lastName = '', firstName = ''] = componentValues(n)
+    if (lastName || firstName) {
+      parsed.lastName = lastName
+      parsed.firstName = firstName
+    }
+  }
+  const fn = first('FN')
+  if (!parsed.firstName && !parsed.lastName && fn) {
+    const fnValue = textValue(fn)
+    const org = first('ORG')
+    // A company card's FN is the company name; don't turn it into a person.
+    if (!org || componentValues(org).join(', ') !== fnValue) {
+      const parts = fnValue.split(' ')
+      parsed.firstName = parts[0]
+      if (parts.length > 1) parsed.lastName = parts.slice(1).join(' ')
+    }
+  }
+
+  const org = first('ORG')
+  if (org) parsed.org = componentValues(org).filter(Boolean).join(', ')
+  const title = first('TITLE')
+  if (title) parsed.position = textValue(title)
+
+  for (const line of lines.filter((l) => l.name === 'TEL')) {
+    const phone = textValue(line).replace(/^tel:/i, '')
+    const key = /\bWORK\b/.test(line.params)
+      ? 'phoneWork'
+      : /\bHOME\b/.test(line.params)
+        ? 'phonePrivate'
+        : /\b(CELL|MOBILE)\b/.test(line.params)
+          ? 'phoneMobile'
+          : !parsed.phoneWork && !parsed.phonePrivate && !parsed.phoneMobile
+            ? 'phoneMobile'
+            : null
+    if (key && !parsed[key]) parsed[key] = phone
+  }
+
+  const email = first('EMAIL')
+  if (email) parsed.email = textValue(email)
+  const url = first('URL')
+  if (url) parsed.website = textValue(url)
+
+  const adr = first('ADR')
+  if (adr) {
+    const [, , street = '', city = '', state = '', zipcode = '', country = ''] =
+      componentValues(adr)
+    Object.assign(parsed, { street, city, state, zipcode, country })
+  }
+  return parsed
+}
+
+/**
+ * Converts an iCalendar date or date-time to the `YYYY-MM-DDTHH:MM` form a
+ * datetime-local field shows. UTC times (ending in Z) become local time, the
+ * same way generateEventData turned local time into UTC; floating times and
+ * dates are kept as written.
+ */
+export function iCalDateToLocalInput(value: string): string {
+  const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?$/.exec(value.trim())
+  if (!m) return ''
+  const [, year, month, day, hour = '00', minute = '00', second = '00', utc] = m
+  if (!utc) return `${year}-${month}-${day}T${hour}:${minute}`
+  const date = new Date(Date.UTC(+year, +month - 1, +day, +hour, +minute, +second))
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  )
+}
+
+function parseEvent(data: string): Record<string, string> {
+  const parsed: Record<string, string> = {}
+  const lines = parseContentLines(data)
+  const first = (name: string) => lines.find((l) => l.name === name)
+  const summary = first('SUMMARY')
+  if (summary) parsed.title = textValue(summary)
+  const location = first('LOCATION')
+  if (location) parsed.location = textValue(location)
+  const start = first('DTSTART')
+  if (start) parsed.startTime = iCalDateToLocalInput(start.value)
+  const end = first('DTEND')
+  if (end) parsed.endTime = iCalDateToLocalInput(end.value)
+  return parsed
+}
 
 /**
  * Detect data type from a string and parse it into structured data
  * @param {string} data - The input string to detect and parse
  * @returns {object} Object containing detected type and parsed data fields
  *   with the following properties:
- *   - type: One of 'text', 'url', 'email', 'phone', 'sms', 'wifi', 'vcard', 'location', 'event'
- *   - parsedData: An object with fields appropriate for the detected type
+ *   - type: One of 'text', 'url', 'email', 'phone', 'sms', 'wifi', 'vcard', 'location', 'event', 'epc'
+ *   - parsedData: An object with fields appropriate for the detected type, ready
+ *     to fill the matching form and give back the same data when regenerated
+ *     (escaping is undone and dates are in the form's local time)
  *
  * For vCard detection, the function detects the vCard version (2.1, 3.0, or 4.0)
  * and extracts personal information fields into parsedData, including:
@@ -448,356 +752,77 @@ export const generateEpcData = (data: {
 export const detectDataType = (
   data: string
 ): {
-  type: 'text' | 'url' | 'email' | 'phone' | 'sms' | 'wifi' | 'vcard' | 'location' | 'event' | 'epc'
+  type: DetectedDataType
   parsedData: Record<string, string | boolean>
 } => {
-  // Default result
-  const result: {
-    type:
-      | 'text'
-      | 'url'
-      | 'email'
-      | 'phone'
-      | 'sms'
-      | 'wifi'
-      | 'vcard'
-      | 'location'
-      | 'event'
-      | 'epc'
-    parsedData: Record<string, string | boolean>
-  } = {
-    type: 'text',
-    parsedData: { text: data }
-  }
+  const detected = (parsedData: Record<string, string | boolean>, type: DetectedDataType) => ({
+    type,
+    parsedData
+  })
 
-  if (!data) return result
+  if (!data) return detected({ text: data }, 'text')
 
   // EPC QR (SEPA Credit Transfer / GiroCode) detection
-  if (data.match(/^BCD\r?\n/)) {
-    result.type = 'epc'
-    result.parsedData = {}
-
+  if (/^BCD\r?\n/.test(data)) {
     const lines = data.replace(/\r/g, '').split('\n')
-
-    result.parsedData.version = lines[1] === '001' ? '001' : '002'
-    result.parsedData.bic = lines[4] || ''
-    result.parsedData.name = lines[5] || ''
-    result.parsedData.iban = lines[6] || ''
-
     const amountField = lines[7] || ''
-    result.parsedData.amount = amountField.startsWith('EUR') ? amountField.slice(3) : ''
-
-    result.parsedData.purpose = lines[8] || ''
-    result.parsedData.remittanceReference = lines[9] || ''
-    result.parsedData.remittanceText = lines[10] || ''
-    result.parsedData.originatorInfo = lines[11] || ''
-
-    return result
+    return detected(
+      {
+        version: lines[1] === '001' ? '001' : '002',
+        bic: lines[4] || '',
+        name: lines[5] || '',
+        iban: lines[6] || '',
+        amount: amountField.startsWith('EUR') ? amountField.slice(3) : '',
+        purpose: lines[8] || '',
+        remittanceReference: lines[9] || '',
+        remittanceText: lines[10] || '',
+        originatorInfo: lines[11] || ''
+      },
+      'epc'
+    )
   }
 
-  // vCard detection
-  if (data.match(/^BEGIN:VCARD/i)) {
-    result.type = 'vcard'
-    result.parsedData = {}
+  // vCard
+  if (/^\s*BEGIN:VCARD/i.test(data)) return detected(parseVCard(data), 'vcard')
 
-    // Extract name with a more precise pattern
-    const fullContent = data.replace(/\r/g, '').split('\n')
+  // URL
+  if (/^https?:\/\//i.test(data)) return detected({ url: data }, 'url')
 
-    // Detect vCard version
-    const versionLine = fullContent.find((line) => line.match(/^VERSION:/i))
-    if (versionLine) {
-      const versionValue = versionLine.substring(8).trim()
-
-      // Map version string to our selection values
-      if (versionValue === '2.1') {
-        result.parsedData.version = '2'
-      } else if (versionValue === '3.0') {
-        result.parsedData.version = '3'
-      } else if (versionValue === '4.0') {
-        result.parsedData.version = '4'
-      }
-    } else {
-      // If no version found, default to v3
-      result.parsedData.version = '3'
-    }
-
-    // Find the N: field
-    const nField = fullContent.find((line) => line.match(/^N:/i))
-    if (nField) {
-      const nameParts = nField.substring(2).split(';')
-      if (nameParts.length >= 2) {
-        result.parsedData.lastName = nameParts[0].trim()
-        result.parsedData.firstName = nameParts[1].trim()
-      }
-    }
-
-    // Extract formatted name (if no name found)
-    if (!result.parsedData.firstName && !result.parsedData.lastName) {
-      const fnField = fullContent.find((line) => line.match(/^FN:/i))
-      if (fnField) {
-        const fnValue = fnField.substring(3).trim()
-        const parts = fnValue.split(' ')
-        if (parts.length > 1) {
-          result.parsedData.firstName = parts[0]
-          result.parsedData.lastName = parts.slice(1).join(' ')
-        } else {
-          result.parsedData.firstName = fnValue
-        }
-      }
-    }
-
-    // Extract organization
-    const orgField = fullContent.find((line) => line.match(/^ORG:/i))
-    if (orgField) {
-      result.parsedData.org = orgField.substring(4).trim()
-    }
-
-    // Extract position/title
-    const titleField = fullContent.find((line) => line.match(/^TITLE:/i))
-    if (titleField) {
-      result.parsedData.position = titleField.substring(6).trim()
-    }
-
-    // Extract phone numbers
-    for (const line of fullContent) {
-      if (line.match(/^TEL[^:]*(?:TYPE=WORK|WORK)[^:]*:/i)) {
-        let phoneValue = line.substring(line.indexOf(':') + 1).trim()
-        // For vCard 4.0, remove the "tel:" prefix
-        if (phoneValue.startsWith('tel:')) {
-          phoneValue = phoneValue.substring(4)
-        }
-        result.parsedData.phoneWork = phoneValue
-      } else if (line.match(/^TEL[^:]*(?:TYPE=HOME|HOME)[^:]*:/i)) {
-        let phoneValue = line.substring(line.indexOf(':') + 1).trim()
-        // For vCard 4.0, remove the "tel:" prefix
-        if (phoneValue.startsWith('tel:')) {
-          phoneValue = phoneValue.substring(4)
-        }
-        result.parsedData.phonePrivate = phoneValue
-      } else if (line.match(/^TEL[^:]*(?:TYPE=CELL|CELL|TYPE=MOBILE|MOBILE)[^:]*:/i)) {
-        let phoneValue = line.substring(line.indexOf(':') + 1).trim()
-        // For vCard 4.0, remove the "tel:" prefix
-        if (phoneValue.startsWith('tel:')) {
-          phoneValue = phoneValue.substring(4)
-        }
-        result.parsedData.phoneMobile = phoneValue
-      } else if (
-        line.match(/^TEL[^:]*/i) &&
-        !result.parsedData.phoneWork &&
-        !result.parsedData.phonePrivate &&
-        !result.parsedData.phoneMobile
-      ) {
-        let phoneValue = line.substring(line.indexOf(':') + 1).trim()
-        // For vCard 4.0, remove the "tel:" prefix
-        if (phoneValue.startsWith('tel:')) {
-          phoneValue = phoneValue.substring(4)
-        }
-        result.parsedData.phoneMobile = phoneValue
-      }
-    }
-
-    // Extract email
-    const emailField = fullContent.find((line) => line.match(/^EMAIL[^:]*:/i))
-    if (emailField) {
-      result.parsedData.email = emailField.substring(emailField.indexOf(':') + 1).trim()
-    }
-
-    // Extract website
-    const urlField = fullContent.find((line) => line.match(/^URL[^:]*:/i))
-    if (urlField) {
-      result.parsedData.website = urlField.substring(urlField.indexOf(':') + 1).trim()
-    }
-
-    // Extract address
-    const addrField = fullContent.find((line) => line.match(/^ADR[^:]*:/i))
-    if (addrField) {
-      const addressParts = addrField.substring(addrField.indexOf(':') + 1).split(';')
-      if (addressParts.length >= 7) {
-        result.parsedData.street = addressParts[2].trim()
-        result.parsedData.city = addressParts[3].trim()
-        result.parsedData.state = addressParts[4].trim()
-        result.parsedData.zipcode = addressParts[5].trim()
-        result.parsedData.country = addressParts[6].trim()
-      }
-    }
-
-    return result
-  }
-
-  // URL detection
-  if (data.match(/^https?:\/\//i)) {
-    result.type = 'url'
-    result.parsedData = { url: data }
-    return result
-  }
-
-  // Email detection
-  if (data.match(/^mailto:/i)) {
-    result.type = 'email'
-    result.parsedData = {}
-
+  // Email
+  if (/^mailto:/i.test(data)) {
+    const parsedData: Record<string, string> = {}
     const emailParts = data.replace(/^mailto:/i, '').split('?')
-    result.parsedData.address = emailParts[0] || ''
-
+    parsedData.address = emailParts[0] || ''
     if (emailParts[1]) {
-      const params = new URLSearchParams(emailParts[1])
-      result.parsedData.subject = params.get('subject') || ''
-      result.parsedData.body = params.get('body') || ''
-      result.parsedData.cc = params.get('cc') || ''
-      result.parsedData.bcc = params.get('bcc') || ''
+      const params = new URLSearchParams(emailParts.slice(1).join('?'))
+      parsedData.subject = params.get('subject') || ''
+      parsedData.body = params.get('body') || ''
+      parsedData.cc = params.get('cc') || ''
+      parsedData.bcc = params.get('bcc') || ''
     }
-
-    return result
+    return detected(parsedData, 'email')
   }
 
-  // Phone detection
-  if (data.match(/^tel:/i)) {
-    result.type = 'phone'
-    result.parsedData = { phone: data.replace(/^tel:/i, '') }
-    return result
+  // Phone
+  if (/^tel:/i.test(data)) return detected({ phone: data.replace(/^tel:/i, '') }, 'phone')
+
+  // SMS (SMSTO:number:message or sms:number?body=message)
+  if (/^(SMSTO|sms):/i.test(data)) return detected(parseSms(data), 'sms')
+
+  // WiFi
+  if (/^WIFI:/i.test(data)) return detected(parseWifi(data), 'wifi')
+
+  // Location (geo:lat,lon[,alt][;params][?query])
+  if (/^geo:/i.test(data)) {
+    const coords = data.replace(/^geo:/i, '').split(/[;?]/)[0].split(',')
+    return detected(
+      coords.length >= 2 ? { latitude: coords[0].trim(), longitude: coords[1].trim() } : {},
+      'location'
+    )
   }
 
-  // SMS detection
-  if (data.match(/^SMSTO:/i) || data.match(/^sms:/i)) {
-    result.type = 'sms'
-    result.parsedData = {}
+  // Calendar event
+  if (/^\s*BEGIN:(VCALENDAR|VEVENT)/i.test(data)) return detected(parseEvent(data), 'event')
 
-    // Handle both SMSTO: and sms: formats
-    if (data.startsWith('SMSTO:')) {
-      const smsParts = data.replace(/^SMSTO:/i, '').split(':')
-
-      if (smsParts.length >= 1) {
-        result.parsedData.phone = smsParts[0].trim() || ''
-      }
-
-      if (smsParts.length >= 2) {
-        result.parsedData.message = smsParts[1].trim() || ''
-      }
-    } else if (data.startsWith('sms:')) {
-      // Handle sms:phone?body=message format
-      const phone = data.replace(/^sms:/i, '')
-
-      if (phone.includes('?')) {
-        const queryIndex = phone.indexOf('?')
-        const phoneNumber = phone.substring(0, queryIndex)
-        const queryString = phone.substring(queryIndex + 1)
-
-        result.parsedData.phone = phoneNumber.trim()
-
-        const params = new URLSearchParams(queryString)
-        result.parsedData.message = params.get('body') || ''
-      } else {
-        result.parsedData.phone = phone.trim()
-      }
-    }
-
-    return result
-  }
-
-  // WiFi detection
-  if (data.match(/^WIFI:/i)) {
-    result.type = 'wifi'
-    result.parsedData = {}
-
-    // Extract SSID
-    const ssidMatch = data.match(/S:([^;]*);/i)
-    if (ssidMatch) {
-      result.parsedData.ssid = ssidMatch[1] || ''
-    }
-
-    // Extract encryption type
-    const encMatch = data.match(/T:([^;]*);/i)
-    if (encMatch) {
-      const encType = encMatch[1].toUpperCase()
-      result.parsedData.encryption =
-        encType === 'NOPASS' || encType === 'WEP' || encType === 'WPA'
-          ? encType.toLowerCase()
-          : 'nopass'
-    } else {
-      result.parsedData.encryption = 'nopass'
-    }
-
-    // Extract password
-    const passMatch = data.match(/P:([^;]*);/i)
-    if (passMatch) {
-      result.parsedData.password = passMatch[1] || ''
-    }
-
-    // Extract hidden flag
-    const hiddenMatch = data.match(/H:(true|false);/i)
-    if (hiddenMatch) {
-      result.parsedData.hidden = hiddenMatch[1].toLowerCase() === 'true'
-    } else {
-      result.parsedData.hidden = false
-    }
-
-    return result
-  }
-
-  // Location detection
-  if (data.match(/^geo:/i)) {
-    result.type = 'location'
-    result.parsedData = {}
-
-    const coords = data.replace(/^geo:/i, '').split(',')
-    if (coords.length >= 2) {
-      result.parsedData.latitude = coords[0] || ''
-      result.parsedData.longitude = coords[1] || ''
-    }
-
-    return result
-  }
-
-  // Calendar/Event detection (simplified)
-  if (data.match(/BEGIN:VCALENDAR/i) || data.match(/BEGIN:VEVENT/i)) {
-    result.type = 'event'
-    result.parsedData = {}
-
-    const summaryMatch = data.match(/SUMMARY:([^\n\r]*)/i)
-    if (summaryMatch) {
-      result.parsedData.title = summaryMatch[1] || ''
-    }
-
-    const locationMatch = data.match(/LOCATION:([^\n\r]*)/i)
-    if (locationMatch) {
-      result.parsedData.location = locationMatch[1] || ''
-    }
-
-    const startMatch = data.match(/DTSTART(?:[^:]*):([^\n\r]*)/i)
-    if (startMatch && startMatch[1]) {
-      result.parsedData.startTime = formatDateFromICal(startMatch[1])
-    }
-
-    const endMatch = data.match(/DTEND(?:[^:]*):([^\n\r]*)/i)
-    if (endMatch && endMatch[1]) {
-      result.parsedData.endTime = formatDateFromICal(endMatch[1])
-    }
-
-    return result
-  }
-
-  // Default to text
-  return result
-}
-
-/**
- * Converts an iCalendar format date to an ISO string
- * @param {string} iCalDate - Date in iCalendar format (e.g., "20230101T120000Z")
- * @returns {string} ISO date string, or empty string if invalid
- */
-function formatDateFromICal(iCalDate: string): string {
-  // Handle basic format: YYYYMMDDTHHMMSSZ
-  const datePattern = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/
-  const match = iCalDate.match(datePattern)
-
-  if (match) {
-    try {
-      const [, year, month, day, hour, minute, second] = match
-      return `${year}-${month}-${day}T${hour}:${minute}:${second}${iCalDate.endsWith('Z') ? 'Z' : ''}`
-    } catch (e) {
-      console.error('Error parsing iCal date:', e)
-    }
-  }
-
-  return iCalDate // Return as is if not parseable
+  return detected({ text: data }, 'text')
 }

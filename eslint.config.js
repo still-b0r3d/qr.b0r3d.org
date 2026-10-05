@@ -71,6 +71,8 @@ export default [
         HTMLCanvasElement: 'readonly',
         SVGSVGElement: 'readonly',
         TextEncoder: 'readonly',
+        TextDecoder: 'readonly',
+        crypto: 'readonly',
         CanvasRenderingContext2D: 'readonly',
         ClipboardItem: 'readonly',
         CSS: 'readonly',
