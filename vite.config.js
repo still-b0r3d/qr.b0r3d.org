@@ -83,7 +83,10 @@ export default defineConfig(({ mode }) => {
           ]
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,svg,png,jpg,jpeg,gif,ico,woff,woff2}'], // Removed html from patterns
+          // Removed html from patterns. Fonts are left out on purpose: the
+          // self-hosted frame fonts are only fetched when someone picks one,
+          // and are cached at that point by the 'fonts' rule below.
+          globPatterns: ['**/*.{js,css,svg,png,jpg,jpeg,gif,ico}'],
           // Exclude large files from precaching and HTML files to avoid base path issues
           globIgnores: ['**/app_preview.*', '**/presets/*.svg', '**/*.html'],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
@@ -93,6 +96,17 @@ export default defineConfig(({ mode }) => {
           navigateFallbackDenylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],
           // Remove modifyURLPrefix as it's causing conflicts with the base path
           runtimeCaching: [
+            {
+              urlPattern: ({ request, sameOrigin }) => sameOrigin && request.destination === 'font',
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'fonts',
+                expiration: {
+                  maxEntries: 60,
+                  maxAgeSeconds: 31536000 // 1 year; files are content-hashed
+                }
+              }
+            },
             {
               urlPattern: ({ request }) => request.destination === 'document',
               handler: 'NetworkFirst',

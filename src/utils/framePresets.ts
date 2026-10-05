@@ -15,14 +15,17 @@ export type FontCategory = 'sans' | 'serif' | 'monospace' | 'display'
 export interface FontOption {
   label: string
   value: string
-  googleFontName?: string
+  /** Family name of a self-hosted web font (see WEB_FONT_LOADERS). */
+  webFontName?: string
   // Omitted on the "Default" entry; everything else is categorised so the UI
   // can render an <optgroup> per category.
   category?: FontCategory
 }
 
 /**
- * Curated font list: web-safe fonts (no loading) + top Google Fonts.
+ * Curated font list: web-safe fonts (no loading) + popular open-source web
+ * fonts. The web fonts ship with the app (@fontsource packages) and are only
+ * downloaded, from this site, when someone picks one.
  *
  * Sources:
  *  - Google Fonts popularity rankings (sans/serif/display picks).
@@ -35,110 +38,130 @@ export const FONT_OPTIONS: FontOption[] = [
   // Sans-serif
   { label: 'Arial', value: 'Arial, sans-serif', category: 'sans' },
   { label: 'Verdana', value: 'Verdana, sans-serif', category: 'sans' },
-  { label: 'Roboto', value: "'Roboto', sans-serif", googleFontName: 'Roboto', category: 'sans' },
-  { label: 'Inter', value: "'Inter', sans-serif", googleFontName: 'Inter', category: 'sans' },
+  { label: 'Roboto', value: "'Roboto', sans-serif", webFontName: 'Roboto', category: 'sans' },
+  { label: 'Inter', value: "'Inter', sans-serif", webFontName: 'Inter', category: 'sans' },
   {
     label: 'Open Sans',
     value: "'Open Sans', sans-serif",
-    googleFontName: 'Open+Sans',
+    webFontName: 'Open Sans',
     category: 'sans'
   },
-  { label: 'Lato', value: "'Lato', sans-serif", googleFontName: 'Lato', category: 'sans' },
+  { label: 'Lato', value: "'Lato', sans-serif", webFontName: 'Lato', category: 'sans' },
   {
     label: 'Montserrat',
     value: "'Montserrat', sans-serif",
-    googleFontName: 'Montserrat',
+    webFontName: 'Montserrat',
     category: 'sans'
   },
   {
     label: 'Poppins',
     value: "'Poppins', sans-serif",
-    googleFontName: 'Poppins',
+    webFontName: 'Poppins',
     category: 'sans'
   },
-  { label: 'Oswald', value: "'Oswald', sans-serif", googleFontName: 'Oswald', category: 'sans' },
+  { label: 'Oswald', value: "'Oswald', sans-serif", webFontName: 'Oswald', category: 'sans' },
   {
     label: 'Raleway',
     value: "'Raleway', sans-serif",
-    googleFontName: 'Raleway',
+    webFontName: 'Raleway',
     category: 'sans'
   },
-  { label: 'Nunito', value: "'Nunito', sans-serif", googleFontName: 'Nunito', category: 'sans' },
+  { label: 'Nunito', value: "'Nunito', sans-serif", webFontName: 'Nunito', category: 'sans' },
   // Serif
   { label: 'Georgia', value: 'Georgia, serif', category: 'serif' },
   { label: 'Times New Roman', value: "'Times New Roman', serif", category: 'serif' },
   {
     label: 'Playfair Display',
     value: "'Playfair Display', serif",
-    googleFontName: 'Playfair+Display',
+    webFontName: 'Playfair Display',
     category: 'serif'
   },
   {
     label: 'Merriweather',
     value: "'Merriweather', serif",
-    googleFontName: 'Merriweather',
+    webFontName: 'Merriweather',
     category: 'serif'
   },
-  // Monospace — all Google entries below have a slashed 0
+  // Monospace — all web-font entries below have a slashed 0
   { label: 'Courier New', value: "'Courier New', monospace", category: 'monospace' },
   {
     label: 'JetBrains Mono',
     value: "'JetBrains Mono', monospace",
-    googleFontName: 'JetBrains+Mono',
+    webFontName: 'JetBrains Mono',
     category: 'monospace'
   },
   {
     label: 'Fira Code',
     value: "'Fira Code', monospace",
-    googleFontName: 'Fira+Code',
+    webFontName: 'Fira Code',
     category: 'monospace'
   },
   {
     label: 'Source Code Pro',
     value: "'Source Code Pro', monospace",
-    googleFontName: 'Source+Code+Pro',
+    webFontName: 'Source Code Pro',
     category: 'monospace'
   },
   {
     label: 'IBM Plex Mono',
     value: "'IBM Plex Mono', monospace",
-    googleFontName: 'IBM+Plex+Mono',
+    webFontName: 'IBM Plex Mono',
     category: 'monospace'
   },
   {
     label: 'Inconsolata',
     value: "'Inconsolata', monospace",
-    googleFontName: 'Inconsolata',
+    webFontName: 'Inconsolata',
     category: 'monospace'
   },
   // Display & cursive
   {
     label: 'Pacifico',
     value: "'Pacifico', cursive",
-    googleFontName: 'Pacifico',
+    webFontName: 'Pacifico',
     category: 'display'
   },
   {
     label: 'Bebas Neue',
     value: "'Bebas Neue', sans-serif",
-    googleFontName: 'Bebas+Neue',
+    webFontName: 'Bebas Neue',
     category: 'display'
   }
 ]
 
-export function loadGoogleFont(fontName: string): Promise<void> {
-  const id = `gfont-${fontName}`
-  if (!document.getElementById(id)) {
-    const link = document.createElement('link')
-    link.id = id
-    link.rel = 'stylesheet'
-    link.crossOrigin = 'anonymous'
-    link.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@400;600&display=swap`
-    document.head.appendChild(link)
-  }
+// Only weight 400 is loaded: frame captions are always drawn at normal weight.
+const WEB_FONT_LOADERS: Record<string, () => Promise<unknown>> = {
+  Roboto: () => import('@fontsource/roboto/400.css'),
+  Inter: () => import('@fontsource/inter/400.css'),
+  'Open Sans': () => import('@fontsource/open-sans/400.css'),
+  Lato: () => import('@fontsource/lato/400.css'),
+  Montserrat: () => import('@fontsource/montserrat/400.css'),
+  Poppins: () => import('@fontsource/poppins/400.css'),
+  Oswald: () => import('@fontsource/oswald/400.css'),
+  Raleway: () => import('@fontsource/raleway/400.css'),
+  Nunito: () => import('@fontsource/nunito/400.css'),
+  'Playfair Display': () => import('@fontsource/playfair-display/400.css'),
+  Merriweather: () => import('@fontsource/merriweather/400.css'),
+  'JetBrains Mono': () => import('@fontsource/jetbrains-mono/400.css'),
+  'Fira Code': () => import('@fontsource/fira-code/400.css'),
+  'Source Code Pro': () => import('@fontsource/source-code-pro/400.css'),
+  'IBM Plex Mono': () => import('@fontsource/ibm-plex-mono/400.css'),
+  Inconsolata: () => import('@fontsource/inconsolata/400.css'),
+  Pacifico: () => import('@fontsource/pacifico/400.css'),
+  'Bebas Neue': () => import('@fontsource/bebas-neue/400.css')
+}
+
+export function hasWebFontLoader(fontName: string): boolean {
+  return fontName in WEB_FONT_LOADERS
+}
+
+export function loadWebFont(fontName: string): Promise<void> {
+  const load = WEB_FONT_LOADERS[fontName]
+  if (!load) return Promise.resolve()
   // Wait for the font to be available for rendering
-  const displayName = fontName.replace(/\+/g, ' ')
-  return document.fonts.load(`400 1em "${displayName}"`).then(() => {})
+  return load()
+    .then(() => document.fonts.load(`400 1em "${fontName}"`))
+    .then(() => {})
 }
 
 export interface FramePreset {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isValidQRCodeConfig } from './qrCodePresets'
+import { builtInPresets, findPresetByName, isValidQRCodeConfig } from './qrCodePresets'
 
 const validStyle = {
   textColor: '#000000',
@@ -112,5 +112,39 @@ describe('isValidQRCodeConfig', () => {
       expect(isValidQRCodeConfig(withImage(42))).toBe(false)
       expect(isValidQRCodeConfig(withImage({ href: 'https://example.com/x.png' }))).toBe(false)
     })
+  })
+})
+
+describe('built-in presets', () => {
+  it('never point a logo at another site', () => {
+    for (const preset of builtInPresets) {
+      expect(preset.image === '' || preset.image.startsWith('data:image/'), preset.name).toBe(true)
+    }
+  })
+
+  it('include a b0r3d cup preset with an embedded logo', () => {
+    const cup = findPresetByName(builtInPresets, 'b0r3d Cup')
+    expect(cup?.image).toMatch(/^data:image\/png;base64,/)
+  })
+
+  it('start with the plain black-on-white preset, with a quiet zone', () => {
+    const [first] = builtInPresets
+    expect(first.name).toBe('Plain')
+    expect(first.dotsOptions.color).toBe('#000000')
+    expect(first.style.background).toBe('#ffffff')
+    expect(first.margin).toBeGreaterThanOrEqual(4)
+  })
+})
+
+describe('findPresetByName', () => {
+  it('matches names case-insensitively', () => {
+    expect(findPresetByName(builtInPresets, 'plain')?.name).toBe('Plain')
+    expect(findPresetByName(builtInPresets, ' PLAIN ')?.name).toBe('Plain')
+  })
+
+  it('returns undefined for unknown or empty names', () => {
+    expect(findPresetByName(builtInPresets, 'nope')).toBeUndefined()
+    expect(findPresetByName(builtInPresets, '')).toBeUndefined()
+    expect(findPresetByName(builtInPresets, undefined)).toBeUndefined()
   })
 })

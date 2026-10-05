@@ -41,7 +41,7 @@ import {
   allFramePresets,
   defaultFramePreset,
   FONT_OPTIONS,
-  loadGoogleFont,
+  loadWebFont,
   type FontCategory,
   type FontOption,
   type FramePreset,
@@ -556,8 +556,8 @@ watch(
 function loadFrameFont(fontFamily?: string) {
   if (!fontFamily) return
   const font = FONT_OPTIONS.find((f) => f.value === fontFamily)
-  if (font?.googleFontName) {
-    loadGoogleFont(font.googleFontName)
+  if (font?.webFontName) {
+    loadWebFont(font.webFontName)
   }
 }
 
@@ -690,8 +690,8 @@ function onFontFamilyChange(value: string): Promise<void> {
   const font = FONT_OPTIONS.find((f) => f.value === value || f.label === value)
   const resolvedValue = font ? font.value : value
   frameStyle.value = { ...frameStyle.value, fontFamily: resolvedValue || undefined }
-  if (font?.googleFontName) {
-    return loadGoogleFont(font.googleFontName)
+  if (font?.webFontName) {
+    return loadWebFont(font.webFontName)
   }
   return Promise.resolve()
 }
@@ -923,8 +923,8 @@ function applyQRConfig(config: QRCodeConfig, key?: string, options?: { restoreDa
     const restoredFontFamily = config.frame.style.fontFamily
     if (restoredFontFamily) {
       const font = FONT_OPTIONS.find((f) => f.value === restoredFontFamily)
-      if (font?.googleFontName) {
-        loadGoogleFont(font.googleFontName)
+      if (font?.webFontName) {
+        loadWebFont(font.webFontName)
       }
     }
 

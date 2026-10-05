@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { isValidFrameStyle, isValidFrameConfig } from './framePresets'
+import {
+  FONT_OPTIONS,
+  hasWebFontLoader,
+  isValidFrameStyle,
+  isValidFrameConfig
+} from './framePresets'
 
 const validStyle = {
   textColor: '#000000',
@@ -108,5 +113,19 @@ describe('isValidFrameConfig', () => {
   it('returns false for null or non-object', () => {
     expect(isValidFrameConfig(null)).toBe(false)
     expect(isValidFrameConfig(undefined)).toBe(false)
+  })
+})
+
+describe('FONT_OPTIONS', () => {
+  it('has a self-hosted loader for every web font', () => {
+    for (const font of FONT_OPTIONS) {
+      if (font.webFontName) expect(hasWebFontLoader(font.webFontName), font.label).toBe(true)
+    }
+  })
+
+  it('names each web font the same way its CSS value does', () => {
+    for (const font of FONT_OPTIONS) {
+      if (font.webFontName) expect(font.value).toContain(`'${font.webFontName}'`)
+    }
   })
 })
