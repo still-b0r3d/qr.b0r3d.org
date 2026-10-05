@@ -83,6 +83,19 @@ pnpm build            # production build in dist/
 `pnpm generate-brand-assets` rebuilds the icons, start-up images, share image
 and cup preset logo from `b0r3d-brand/cup.png`.
 
+Two end-to-end checks run against a production build in headless Chromium:
+
+```sh
+pnpm build
+pnpm verify:static    # exports a URL, emoji text and Wi-Fi as PNG + SVG and
+                      # checks the decoded payloads match the input byte for byte
+pnpm verify:site      # manifest, service worker, offline reload, presets, fonts,
+                      # every export, scanning; fails on any request to another site
+```
+
+Without an argument they serve `dist/` themselves; pass a URL (for example
+`pnpm verify:site https://qr.b0r3d.org`) to check a deployed copy instead.
+
 ## Building for production
 
 `pnpm build` writes a fully static site to `dist/`, meant to be served from the
