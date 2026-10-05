@@ -1,6 +1,7 @@
 import type { Options as StyledQRCodeProps } from '@/lib/qr-code'
 import type { FrameStyle } from './framePresets'
 import { isValidQRCodeConfig } from './qrCodePresets'
+import { storageGet, storageSet } from './safeStorage'
 import { sanitizeSimpleFields, type QRViewMode, type SimpleFieldKey } from './simpleModeFields'
 
 export interface QRCodeFrameConfig {
@@ -33,7 +34,7 @@ export function isLocalStorageEnabled(): boolean {
 }
 
 export function hasStoredQRConfig(): boolean {
-  return localStorage.getItem(QR_CODE_STORAGE_KEY) !== null
+  return storageGet(QR_CODE_STORAGE_KEY) !== null
 }
 
 export function serializeQRConfig(
@@ -45,11 +46,11 @@ export function serializeQRConfig(
 }
 
 export function saveQRConfig(config: QRCodeConfig): void {
-  localStorage.setItem(QR_CODE_STORAGE_KEY, JSON.stringify(config))
+  storageSet(QR_CODE_STORAGE_KEY, JSON.stringify(config))
 }
 
 export function loadQRConfig(): QRCodeConfig | null {
-  const stored = localStorage.getItem(QR_CODE_STORAGE_KEY)
+  const stored = storageGet(QR_CODE_STORAGE_KEY)
   if (!stored) return null
   try {
     const parsed: unknown = JSON.parse(stored)
@@ -69,20 +70,20 @@ export const QR_VIEW_MODE_STORAGE_KEY = 'qrViewMode'
 export const QR_SIMPLE_FIELDS_STORAGE_KEY = 'qrSimpleFields'
 
 export function saveViewMode(mode: QRViewMode): void {
-  localStorage.setItem(QR_VIEW_MODE_STORAGE_KEY, mode)
+  storageSet(QR_VIEW_MODE_STORAGE_KEY, mode)
 }
 
 export function loadViewMode(): QRViewMode | null {
-  const stored = localStorage.getItem(QR_VIEW_MODE_STORAGE_KEY)
+  const stored = storageGet(QR_VIEW_MODE_STORAGE_KEY)
   return stored === 'simple' || stored === 'full' ? stored : null
 }
 
 export function saveSimpleFields(keys: SimpleFieldKey[]): void {
-  localStorage.setItem(QR_SIMPLE_FIELDS_STORAGE_KEY, JSON.stringify(keys))
+  storageSet(QR_SIMPLE_FIELDS_STORAGE_KEY, JSON.stringify(keys))
 }
 
 export function loadSimpleFields(): SimpleFieldKey[] {
-  const stored = localStorage.getItem(QR_SIMPLE_FIELDS_STORAGE_KEY)
+  const stored = storageGet(QR_SIMPLE_FIELDS_STORAGE_KEY)
   if (!stored) return []
   try {
     return sanitizeSimpleFields(JSON.parse(stored))

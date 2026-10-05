@@ -2,6 +2,7 @@
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { storageGet, storageSet } from '@/utils/safeStorage'
 
 const emit = defineEmits<{
   'qr-detected': [data: string]
@@ -16,12 +17,12 @@ const scannerContainerId = 'html5-qrcode-scanner'
 const html5QrCodeScanner = ref<Html5Qrcode | null>(null)
 const isScanning = ref(false)
 const CAMERA_PREFERENCE_KEY = 'qr-scanner-camera-preference'
-const isFrontCamera = ref(localStorage.getItem(CAMERA_PREFERENCE_KEY) === 'front')
+const isFrontCamera = ref(storageGet(CAMERA_PREFERENCE_KEY) === 'front')
 const hasMultipleCameras = ref(false)
 
 const toggleCamera = () => {
   isFrontCamera.value = !isFrontCamera.value
-  localStorage.setItem(CAMERA_PREFERENCE_KEY, isFrontCamera.value ? 'front' : 'back')
+  storageSet(CAMERA_PREFERENCE_KEY, isFrontCamera.value ? 'front' : 'back')
   startScanning()
 }
 
@@ -90,7 +91,7 @@ const startScanning = async () => {
         firstCameraLabel.includes('user') ||
         firstCameraLabel.includes('selfie')
       isFrontCamera.value = isFront
-      localStorage.setItem(CAMERA_PREFERENCE_KEY, isFront ? 'front' : 'back')
+      storageSet(CAMERA_PREFERENCE_KEY, isFront ? 'front' : 'back')
     }
 
     await html5QrCodeScanner.value!.start(

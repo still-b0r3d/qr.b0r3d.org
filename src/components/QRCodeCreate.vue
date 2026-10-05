@@ -27,6 +27,8 @@ import DataChecks from '@/components/DataChecks.vue'
 import PrintSizeSettings from '@/components/PrintSizeSettings.vue'
 import { decodeQrImage, getScanWarnings } from '@/utils/scanCheck'
 import { getDataChecks } from '@/utils/linkChecks'
+import { storageGet, storageSet } from '@/utils/safeStorage'
+import { MAX_BACKGROUND_SIDE, MAX_LOGO_SIDE, readImageFile } from '@/utils/imageUpload'
 import { fetchRemoteLogo, resolveLocalLogo, type LogoResult } from '@/utils/logoImage'
 import {
   checkPrintSettings,
@@ -424,21 +426,16 @@ function randomizeStyleSettings() {
 }
 
 function uploadImage() {
-  console.debug('Uploading image')
   const imageInput = document.createElement('input')
   imageInput.type = 'file'
   imageInput.accept = 'image/*'
-  imageInput.onchange = (event: Event) => {
-    const target = event.target as HTMLInputElement
-    if (target.files) {
-      const file = target.files[0]
-      const reader = new FileReader()
-      reader.onload = (event: ProgressEvent<FileReader>) => {
-        const target = event.target as FileReader
-        const result = target.result as string
-        image.value = result
-      }
-      reader.readAsDataURL(file)
+  imageInput.onchange = async (event: Event) => {
+    const file = (event.target as HTMLInputElement).files?.[0]
+    if (!file) return
+    try {
+      image.value = await readImageFile(file, MAX_LOGO_SIDE)
+    } catch (err) {
+      console.error('Could not read the logo image:', err)
     }
   }
   imageInput.click()
@@ -620,15 +617,15 @@ function uploadFrameBackgroundImage() {
   const imageInput = document.createElement('input')
   imageInput.type = 'file'
   imageInput.accept = 'image/*'
-  imageInput.onchange = (event: Event) => {
-    const target = event.target as HTMLInputElement
-    const file = target.files?.[0]
+  imageInput.onchange = async (event: Event) => {
+    const file = (event.target as HTMLInputElement).files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      frameStyle.value = { ...frameStyle.value, backgroundImage: reader.result as string }
+    try {
+      const backgroundImage = await readImageFile(file, MAX_BACKGROUND_SIDE)
+      frameStyle.value = { ...frameStyle.value, backgroundImage }
+    } catch (err) {
+      console.error('Could not read the background image:', err)
     }
-    reader.readAsDataURL(file)
   }
   imageInput.click()
 }
@@ -1433,7 +1430,7 @@ const PRINT_SETTINGS_KEY = 'b0r3d-qr.print-settings'
 function loadPrintSettings(): PrintSettings {
   if (!isLocalStorageEnabled()) return { ...DEFAULT_PRINT_SETTINGS }
   try {
-    const saved = JSON.parse(localStorage.getItem(PRINT_SETTINGS_KEY) ?? 'null')
+    const saved = JSON.parse(storageGet(PRINT_SETTINGS_KEY) ?? 'null')
     return saved && typeof saved === 'object'
       ? { ...DEFAULT_PRINT_SETTINGS, ...saved }
       : { ...DEFAULT_PRINT_SETTINGS }
@@ -1445,12 +1442,7 @@ const printSettings = ref<PrintSettings>(loadPrintSettings())
 watch(
   printSettings,
   (value) => {
-    if (!isLocalStorageEnabled()) return
-    try {
-      localStorage.setItem(PRINT_SETTINGS_KEY, JSON.stringify(value))
-    } catch {
-      /* applies for this visit */
-    }
+    if (isLocalStorageEnabled()) storageSet(PRINT_SETTINGS_KEY, JSON.stringify(value))
   },
   { deep: true }
 )

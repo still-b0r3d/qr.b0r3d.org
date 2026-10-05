@@ -73,6 +73,7 @@ export default [
         TextEncoder: 'readonly',
         TextDecoder: 'readonly',
         crypto: 'readonly',
+        DOMException: 'readonly',
         CanvasRenderingContext2D: 'readonly',
         ClipboardItem: 'readonly',
         CSS: 'readonly',
