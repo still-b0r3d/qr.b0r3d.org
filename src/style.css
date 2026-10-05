@@ -1,3 +1,18 @@
+/* b0r3d.org tokens */
+:root {
+  --bg: #131313;
+  --panel: #1a1a1a;
+  --panel-2: #1f1f1f;
+  --line: #2c2c2c;
+  --text: #e6e6e6;
+  --muted: #9d9d9d;
+  --pink: #ff66ff;
+  --magenta: #ff00ff;
+  --cyan: #00ffff;
+  --mint: #00ff9d;
+  --brand-font: 'Courier New', Courier, monospace;
+}
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   font-weight: 400;
@@ -54,22 +69,43 @@
   scrollbar-width: none; /* Firefox */
 }
 
+/* Links. Each rule has the specificity of a bare `a`, so it beats
+   Tailwind's preflight reset (which comes earlier) but loses to utility
+   classes, which keeps button-style links looking like buttons. Light-mode
+   colours are darker shades of the b0r3d pink/cyan so they stay readable on
+   white. */
 a {
-  color: #0000ee;
+  color: #a000a0;
   text-decoration: underline;
+  text-underline-offset: 2px;
   cursor: pointer;
 }
 
-a:visited {
-  color: #551a8b;
+a:where(:hover) {
+  color: #006b6b;
 }
 
-a:hover {
-  text-decoration: none;
+:where(.dark) a {
+  color: var(--pink);
 }
 
-a:active {
-  color: #ee0000;
+:where(.dark) a:where(:hover) {
+  color: var(--cyan);
+}
+
+/* CRT scanlines, drawn behind the app (like b0r3d.org) so they never sit on
+   top of a QR code, an input or any other panel. Dark mode only. */
+.dark body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 3px,
+    rgba(0, 255, 100, 0.025) 3px 6px
+  );
 }
 
 body {
@@ -84,6 +120,8 @@ body {
 }
 
 #app {
+  position: relative;
+  z-index: 1;
   margin: 0 auto;
   text-align: center;
   width: 100vw;
@@ -228,4 +266,51 @@ input[type='checkbox']:hover {
 
 .vertical-border {
   @apply h-8 w-1 bg-slate-300 dark:bg-slate-700;
+}
+
+/* b0r3d brand: cup + glowing Courier title */
+/* Layout (flex, gap, md:hidden) comes from utility classes on the element;
+   setting display here would override md:hidden. */
+.brand {
+  text-decoration: none;
+  color: inherit;
+}
+
+.brand-title {
+  font-family: var(--brand-font);
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #131313;
+  text-shadow:
+    0 0 12px rgba(255, 0, 255, 0.35),
+    0 0 24px rgba(0, 255, 255, 0.25);
+}
+
+.dark .brand-title {
+  color: var(--text);
+  text-shadow:
+    0 0 18px rgba(255, 0, 255, 0.75),
+    0 0 36px rgba(0, 255, 255, 0.45);
+}
+
+/* Section headings use the brand font too */
+.section-heading {
+  font-family: var(--brand-font);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* The "codes are static" line under the header */
+.static-note {
+  @apply mx-auto mb-4 w-fit max-w-full text-balance rounded px-3 py-1.5 text-center text-sm;
+  font-family: var(--brand-font);
+  letter-spacing: 0.5px;
+  color: #131313;
+  border: 1px solid #008a55;
+}
+
+.dark .static-note {
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.7);
+  border-color: var(--mint);
 }

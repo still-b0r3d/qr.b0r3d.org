@@ -4,8 +4,8 @@
  *
  * Scans the codebase for all translation strings used via t() / $t() and
  * adds any missing strings to locales/en.json.
- * Translation syncing (upload/pre-translate/download) is handled server-side
- * by the Crowdin GitHub integration.
+ * Other locales fall back to the English text until a translation is added
+ * (scripts/translate-deepl.mjs can fill them in).
  */
 
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
@@ -123,12 +123,11 @@ if (!hasNewKeys) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. Done — translations are synced by the Crowdin GitHub integration
+// 5. Done
 // ---------------------------------------------------------------------------
 if (hasNewKeys) {
   log(GREEN, `✅ Added ${missingKeys.length} new string(s) to locales/en.json.`)
-  log(YELLOW, '   Commit & push to main — the Crowdin GitHub integration will')
-  log(YELLOW, '   upload the new source strings and open a translations PR.')
+  log(YELLOW, '   Other locales show the English text until they are translated.')
 } else {
   log(GREEN, '✅ en.json is already up to date — nothing to do.')
 }

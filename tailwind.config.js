@@ -1,6 +1,26 @@
 import animate from 'tailwindcss-animate'
 import typography from '@tailwindcss/typography'
 
+// b0r3d palette. Upstream styles everything with the zinc/gray/slate scales
+// (light shades in light mode, dark shades in dark mode), so the dark end of
+// each scale is mapped onto the b0r3d.org tokens and the light end is left
+// neutral. One mapping restyles every component in both themes.
+//   --bg #131313  --panel #1a1a1a  --panel-2 #1f1f1f  --line #2c2c2c
+//   --text #e6e6e6  --muted #9d9d9d
+const b0r3dGrey = {
+  50: '#fafafa',
+  100: '#f4f4f4',
+  200: '#e6e6e6', // --text
+  300: '#d4d4d4',
+  400: '#9d9d9d', // --muted
+  500: '#737373',
+  600: '#3a3a3a',
+  700: '#2c2c2c', // --line
+  800: '#1f1f1f', // --panel-2
+  900: '#1a1a1a', // --panel
+  950: '#131313' // --bg
+}
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -20,6 +40,21 @@ export default {
     },
     extend: {
       colors: {
+        zinc: b0r3dGrey,
+        gray: b0r3dGrey,
+        slate: b0r3dGrey,
+        b0r3d: {
+          bg: '#131313',
+          panel: '#1a1a1a',
+          'panel-2': '#1f1f1f',
+          line: '#2c2c2c',
+          text: '#e6e6e6',
+          muted: '#9d9d9d',
+          pink: '#ff66ff',
+          magenta: '#ff00ff',
+          cyan: '#00ffff',
+          mint: '#00ff9d'
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

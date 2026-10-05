@@ -204,10 +204,23 @@ watch(isLarge, () => nextTick(() => observeExportSheet()))
 onMounted(() => nextTick(() => observeExportSheet()))
 onUnmounted(() => exportSheetObserver?.disconnect())
 
-// Extra bottom padding (mobile only) so settings can scroll above the sheet.
+// Extra bottom space (mobile only) so the page can scroll above the sheet.
+// Published as a CSS variable because the app footer comes after the
+// settings; AppFooter pads itself by this amount so it isn't hidden either.
 const settingsBottomPadding = computed(() =>
   isLarge.value ? undefined : `${Math.round(exportSheetHeight.value) + 24}px`
 )
+const SHEET_CLEARANCE_VAR = '--export-sheet-clearance'
+watch(
+  settingsBottomPadding,
+  (value) => {
+    const root = document.documentElement.style
+    if (value) root.setProperty(SHEET_CLEARANCE_VAR, value)
+    else root.removeProperty(SHEET_CLEARANCE_VAR)
+  },
+  { immediate: true }
+)
+onUnmounted(() => document.documentElement.style.removeProperty(SHEET_CLEARANCE_VAR))
 
 // Briefly flag the settings container so visible `.field-reveal` blocks play
 // their slide-in animation when the user switches modes.
@@ -1346,7 +1359,7 @@ const updateDataFromModal = (newData: string) => {
     <Drawer v-else v-model:open="isMobileExportDrawerOpen">
       <DrawerTrigger
         id="drawer-preview-container"
-        class="fixed inset-x-0 bottom-0 z-10 rounded-t-lg border-t border-solid border-slate-300 bg-white shadow-2xl outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 dark:bg-black dark:focus-visible:ring-zinc-200"
+        class="fixed inset-x-0 bottom-0 z-10 rounded-t-lg border-t border-solid border-slate-300 bg-white shadow-2xl outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 dark:border-zinc-700 dark:bg-zinc-950 dark:focus-visible:ring-zinc-200"
       >
         <div class="flex flex-col items-center">
           <!-- Handle indicator for bottom sheet -->
@@ -1608,7 +1621,7 @@ const updateDataFromModal = (newData: string) => {
             class="flex flex-col gap-4 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700"
           >
             <h2
-              class="mx-auto -mt-[30px] bg-white px-4 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100"
+              class="section-heading mx-auto -mt-[30px] bg-white px-4 text-zinc-900 dark:bg-b0r3d-bg dark:text-zinc-100"
             >
               {{ t('Export QR code') }}
             </h2>
@@ -1823,7 +1836,6 @@ const updateDataFromModal = (newData: string) => {
       id="settings"
       class="flex w-full grow flex-col items-start gap-8 text-start"
       :class="{ 'mode-animating': isModeAnimating }"
-      :style="{ paddingBottom: settingsBottomPadding }"
     >
       <h2 class="sr-only">{{ t('Settings to customize your QR code') }}</h2>
 
@@ -1911,7 +1923,7 @@ const updateDataFromModal = (newData: string) => {
       >
         <AccordionItem v-show="isFrameSectionVisible" value="frame-settings">
           <AccordionTrigger
-            class="button !px-4 text-2xl text-gray-700 outline-none dark:text-gray-100 md:!px-6 lg:!px-8"
+            class="button section-heading !px-4 text-2xl text-gray-700 outline-none dark:text-gray-100 md:!px-6 lg:!px-8"
             ><span id="frame-settings-title">{{ t('Frame settings') }}</span></AccordionTrigger
           >
           <AccordionContent class="px-2 pb-8 pt-4">
@@ -2184,7 +2196,7 @@ const updateDataFromModal = (newData: string) => {
         </AccordionItem>
         <AccordionItem value="qr-code-settings">
           <AccordionTrigger
-            class="button !px-4 text-2xl text-gray-700 outline-none dark:text-gray-100 md:!px-6 lg:!px-8"
+            class="button section-heading !px-4 text-2xl text-gray-700 outline-none dark:text-gray-100 md:!px-6 lg:!px-8"
             ><span id="qr-code-settings-title">{{ t('QR code settings') }}</span></AccordionTrigger
           >
           <AccordionContent class="px-2 pb-8 pt-4">

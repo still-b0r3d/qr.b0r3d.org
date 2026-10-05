@@ -60,6 +60,20 @@ export default defineConfig(({ mode }) => {
               type: 'image/png',
               purpose: 'maskable'
             }
+          ],
+          screenshots: [
+            {
+              src: 'app_icons/web/screenshot-narrow.png',
+              sizes: '780x1688',
+              type: 'image/png',
+              form_factor: 'narrow'
+            },
+            {
+              src: 'app_icons/web/screenshot-wide.png',
+              sizes: '1440x900',
+              type: 'image/png',
+              form_factor: 'wide'
+            }
           ]
         },
         workbox: {
@@ -67,10 +81,15 @@ export default defineConfig(({ mode }) => {
           // self-hosted frame fonts are only fetched when someone picks one,
           // and are cached at that point by the 'fonts' rule below.
           globPatterns: ['**/*.{js,css,svg,png,jpg,jpeg,gif,ico}'],
-          // Exclude HTML files to avoid base path issues. iOS start-up images
-          // and the share preview image are only fetched by the OS or by
-          // link previews, never by the app itself.
-          globIgnores: ['**/app_icons/web/splash-*', 'og-image.png', '**/*.html'],
+          // Exclude HTML files to avoid base path issues. iOS start-up
+          // images, install-prompt screenshots and the share preview image are
+          // only fetched by the OS or by link previews, never by the app.
+          globIgnores: [
+            '**/app_icons/web/splash-*',
+            '**/app_icons/web/screenshot-*',
+            'og-image.png',
+            '**/*.html'
+          ],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
           // Don't precache index.html to avoid base path issues
           dontCacheBustURLsMatching: /\.\w{8}\./,

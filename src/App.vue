@@ -4,6 +4,7 @@ import MobileMenu from '@/components/MobileMenu.vue'
 import QRCodeScan from '@/components/QRCodeScan.vue'
 import QRCodeCreate from '@/components/QRCodeCreate.vue'
 import AppFooter from '@/components/AppFooter.vue'
+import cupUrl from '@/assets/b0r3d-cup.png'
 import useDarkModePreference from '@/utils/useDarkModePreference'
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -76,11 +77,14 @@ const isModeToggleDisabled = computed(() => {
 </script>
 
 <template>
-  <main>
+  <main class="flex min-h-full flex-col">
     <!-- Desktop header - only visible on desktop -->
     <div class="hidden md:mx-auto md:my-4 md:flex md:w-5/6 md:flex-row md:justify-between md:ps-4">
       <div class="flex items-center">
-        <h1 class="text-3xl text-gray-700 dark:text-gray-100">b0r3d QR</h1>
+        <a href="./" class="brand flex items-center gap-2">
+          <img :src="cupUrl" alt="" width="44" height="44" class="size-11" />
+          <h1 class="brand-title text-3xl">b0r3d QR</h1>
+        </a>
 
         <!-- Mode toggle button - only visible on desktop -->
         <div
@@ -90,7 +94,7 @@ const isModeToggleDisabled = computed(() => {
             :class="[
               'flex items-center gap-1 rounded-md px-2 py-1 text-sm outline-none transition-colors focus-visible:ring-1 focus-visible:ring-zinc-700 dark:focus-visible:ring-zinc-200 md:gap-2 md:px-3 md:py-1.5 md:text-base',
               appMode === AppMode.Create
-                ? 'bg-white text-zinc-900 shadow dark:bg-zinc-700 dark:text-zinc-100'
+                ? 'bg-white text-zinc-900 shadow dark:bg-zinc-700 dark:text-zinc-100 dark:ring-1 dark:ring-b0r3d-pink/50'
                 : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
             ]"
             @click="setAppMode(AppMode.Create)"
@@ -109,7 +113,7 @@ const isModeToggleDisabled = computed(() => {
             :class="[
               'flex items-center gap-1 rounded-md px-2 py-1 text-sm outline-none transition-colors focus-visible:ring-1 focus-visible:ring-zinc-700 dark:focus-visible:ring-zinc-200 md:gap-2 md:px-3 md:py-1.5 md:text-base',
               appMode === AppMode.Scan
-                ? 'bg-white text-zinc-900 shadow dark:bg-zinc-700 dark:text-zinc-100'
+                ? 'bg-white text-zinc-900 shadow dark:bg-zinc-700 dark:text-zinc-100 dark:ring-1 dark:ring-b0r3d-pink/50'
                 : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
             ]"
             @click="setAppMode(AppMode.Scan)"
@@ -135,7 +139,7 @@ const isModeToggleDisabled = computed(() => {
         >
           <span v-if="isDarkModePreferenceSetBySystem">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24">
-              <g fill="#abcabc">
+              <g fill="currentColor">
                 <path d="M12 16a4 4 0 0 0 0-8z" />
                 <path
                   fill-rule="evenodd"
@@ -151,7 +155,7 @@ const isModeToggleDisabled = computed(() => {
               class="icon"
               fill="none"
               viewBox="0 0 24 24"
-              stroke="#abcbca"
+              stroke="currentColor"
               stroke-width="2"
               width="28"
               height="28"
@@ -174,7 +178,7 @@ const isModeToggleDisabled = computed(() => {
               height="28"
             >
               <path
-                fill="#abcbca"
+                fill="currentColor"
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
@@ -199,7 +203,7 @@ const isModeToggleDisabled = computed(() => {
             :class="[
               'flex items-center gap-1 rounded-md px-2 py-1 text-sm outline-none transition-colors focus-visible:ring-1 focus-visible:ring-zinc-700 dark:focus-visible:ring-zinc-200',
               appMode === AppMode.Create
-                ? 'bg-white text-zinc-900 shadow dark:bg-zinc-700 dark:text-zinc-100'
+                ? 'bg-white text-zinc-900 shadow dark:bg-zinc-700 dark:text-zinc-100 dark:ring-1 dark:ring-b0r3d-pink/50'
                 : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100',
               isHeaderCollapsed ? 'py-0.5 text-xs' : 'py-1 text-sm'
             ]"
@@ -224,7 +228,7 @@ const isModeToggleDisabled = computed(() => {
             :class="[
               'flex items-center gap-1 rounded-md px-2 py-1 text-sm outline-none transition-colors focus-visible:ring-1 focus-visible:ring-zinc-700 dark:focus-visible:ring-zinc-200',
               appMode === AppMode.Scan
-                ? 'bg-white text-zinc-900 shadow dark:bg-zinc-700 dark:text-zinc-100'
+                ? 'bg-white text-zinc-900 shadow dark:bg-zinc-700 dark:text-zinc-100 dark:ring-1 dark:ring-b0r3d-pink/50'
                 : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100',
               isHeaderCollapsed ? 'py-0.5 text-xs' : 'py-1 text-sm'
             ]"
@@ -257,10 +261,20 @@ const isModeToggleDisabled = computed(() => {
     </div>
 
     <div
-      class="relative grid min-h-screen place-items-center items-start bg-white p-8 pt-16 dark:bg-zinc-900 md:px-6 md:pb-6 md:pt-4"
+      class="relative grid flex-1 place-items-center items-start bg-white p-8 pt-16 dark:bg-transparent md:px-6 md:pb-6 md:pt-4"
     >
       <!-- Main content area with conditional rendering based on app mode -->
       <div class="w-full lg:w-5/6">
+        <!-- Brand row on small screens (the desktop header carries it otherwise) -->
+        <a href="./" class="brand mb-3 flex items-center justify-center gap-2 md:hidden">
+          <img :src="cupUrl" alt="" width="36" height="36" class="size-9" />
+          <span class="brand-title text-2xl">b0r3d QR</span>
+        </a>
+        <p class="static-note">
+          {{
+            t('Static QR codes: what you enter is stored in the code itself, so it never expires.')
+          }}
+        </p>
         <div v-if="appMode === AppMode.Create">
           <QRCodeCreate :initial-data="capturedData" />
         </div>

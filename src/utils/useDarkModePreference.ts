@@ -3,8 +3,14 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 export type DarkModePreference = 'light' | 'dark' | 'system'
 const colorSchemeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
 
-function getLocalStoragePreference(): DarkModePreference {
-  return localStorage.getItem('dark-mode-preference') as DarkModePreference
+const STORAGE_KEY = 'dark-mode-preference'
+
+function getLocalStoragePreference(): DarkModePreference | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY) as DarkModePreference | null
+  } catch {
+    return null
+  }
 }
 
 function getMediaPreference(): DarkModePreference {
@@ -12,8 +18,10 @@ function getMediaPreference(): DarkModePreference {
   return hasDarkPreference ? 'dark' : 'light'
 }
 
+// Dark is the default; index.html applies the same rule before the app loads
+// so there is no flash of the light theme.
 function getDarkModePreference(): DarkModePreference {
-  return getLocalStoragePreference() ?? 'system'
+  return getLocalStoragePreference() ?? 'dark'
 }
 
 function getIsDarkMode(): boolean {
@@ -42,11 +50,17 @@ const useDarkModePreference = () => {
   watch(darkModePreference, updateUiBasedOnDarkMode, { immediate: true })
 
   function setDarkModePreference(theme: DarkModePreference) {
-    localStorage.setItem('dark-mode-preference', theme)
+    try {
+      localStorage.setItem(STORAGE_KEY, theme)
+    } catch {
+      /* preference still applies for this visit */
+    }
     darkModePreference.value = theme
   }
 
-  const preferences: DarkModePreference[] = ['light', 'dark', 'system']
+  // Starting from the dark default, one click gives light, the next follows
+  // the system setting.
+  const preferences: DarkModePreference[] = ['dark', 'light', 'system']
   function toggleDarkModePreference(): void {
     const updatedPreference =
       preferences[(preferences.indexOf(darkModePreference.value) + 1) % preferences.length]

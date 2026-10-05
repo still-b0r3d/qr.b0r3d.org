@@ -81,7 +81,7 @@ onUnmounted(() => {
       <div class="flex flex-col gap-4">
         <!-- App title -->
         <div class="flex items-center">
-          <h1 class="text-xl text-gray-700 dark:text-gray-100">b0r3d QR</h1>
+          <h1 class="brand-title text-xl">b0r3d QR</h1>
         </div>
 
         <!-- Dark mode toggle -->

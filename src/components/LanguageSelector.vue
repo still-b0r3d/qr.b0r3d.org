@@ -75,7 +75,7 @@ onMounted(() => {
       >
         <g
           fill="none"
-          stroke="#abcbca"
+          stroke="currentColor"
           stroke-linecap="round"
           stroke-linejoin="round"
           stroke-width="2"

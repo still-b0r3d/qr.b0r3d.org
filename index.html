@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 
 <head>
   <meta charset="UTF-8" />
@@ -35,6 +35,17 @@
   <meta name="color-scheme" content="dark light">
 
   <title>b0r3d QR</title>
+  <script>
+    // Dark is the default. Drop it before first paint only if the visitor
+    // chose light, or chose "system" on a light system (same rule as
+    // src/utils/useDarkModePreference.ts).
+    try {
+      var pref = localStorage.getItem('dark-mode-preference')
+      if (pref === 'light' || (pref === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.remove('dark')
+      }
+    } catch (e) {}
+  </script>
 </head>
 
 <body>
