@@ -1,24 +1,52 @@
 <script setup lang="ts">
-import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode'
+/**
+ * Camera scanning: the browser's camera stream in a <video>, with frames read
+ * by ZXing-C++ (zxing-wasm, served from this site). Reads QR codes and every
+ * other common barcode, including the types this app can make.
+ */
+import { storageGet, storageSet } from '@/utils/safeStorage'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { storageGet, storageSet } from '@/utils/safeStorage'
 
 const emit = defineEmits<{
-  'qr-detected': [data: string]
+  'qr-detected': [data: string, format?: string]
   cancel: []
 }>()
 
 const { t } = useI18n()
 const errorMessage = ref<string | null>(null)
 const isLoading = ref(false)
-const hasCamera = ref(false)
-const scannerContainerId = 'html5-qrcode-scanner'
-const html5QrCodeScanner = ref<Html5Qrcode | null>(null)
 const isScanning = ref(false)
+const hasMultipleCameras = ref(false)
+const video = ref<HTMLVideoElement | null>(null)
+
 const CAMERA_PREFERENCE_KEY = 'qr-scanner-camera-preference'
 const isFrontCamera = ref(storageGet(CAMERA_PREFERENCE_KEY) === 'front')
-const hasMultipleCameras = ref(false)
+
+// Frames are read at most this often, and scaled down to this size first:
+// plenty for a code that fills a fair part of the view, and light on phones.
+const FRAME_INTERVAL_MS = 120
+const MAX_FRAME_SIDE = 1280
+
+let stream: MediaStream | null = null
+let session = 0
+
+function stopStream() {
+  stream?.getTracks().forEach((track) => track.stop())
+  stream = null
+  if (video.value) video.value.srcObject = null
+}
+
+const stopScanner = () => {
+  session++
+  isScanning.value = false
+  stopStream()
+}
+
+const stopScanning = () => {
+  stopScanner()
+  emit('cancel')
+}
 
 const toggleCamera = () => {
   isFrontCamera.value = !isFrontCamera.value
@@ -26,122 +54,97 @@ const toggleCamera = () => {
   startScanning()
 }
 
-const stopScanner = async () => {
-  try {
-    // Check if scanner is in scanning state before stopping
-    if (html5QrCodeScanner.value?.getState() === Html5QrcodeScannerState.SCANNING) {
-      await html5QrCodeScanner.value.stop()
-    }
-  } catch (err) {
-    console.error('Error stopping QR scanner:', err)
-  } finally {
-    isScanning.value = false
+function cameraErrorMessage(err: unknown): string {
+  const name = (err as { name?: string } | null)?.name
+  if (name === 'NotAllowedError' || name === 'SecurityError') {
+    return t('Camera access denied. Please allow camera access in your browser settings.')
   }
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+    return t('No camera found on this device')
+  }
+  if (name === 'NotReadableError') return t('Camera is already in use by another application')
+  return t('Could not start QR code scanner')
 }
 
-const stopScanning = async () => {
-  await stopScanner()
-  emit('cancel')
-}
-
-const startScanning = async () => {
+async function startScanning() {
+  stopScanner()
+  const current = ++session
   errorMessage.value = null
   isLoading.value = true
-
-  // Stop scanning if already running
-  await stopScanner()
-
+  // Start loading the decoder while the camera starts up.
+  const decoder = import('@/lib/barcode/zxing')
   try {
-    if (!html5QrCodeScanner.value) {
-      html5QrCodeScanner.value = new Html5Qrcode(scannerContainerId)
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw Object.assign(new Error('No camera API'), { name: 'NotFoundError' })
     }
-
-    const devices = await Html5Qrcode.getCameras()
-
-    if (!devices || devices.length === 0) {
-      errorMessage.value = t('No camera found on this device')
-      isLoading.value = false
-      return
-    }
-
-    hasMultipleCameras.value = devices && devices.length > 1
-
-    // Select camera based on internal state and availability
-    const preferredType = isFrontCamera.value ? 'front' : 'back'
-
-    // Try to find the preferred camera type
-    const preferredCamera = devices.find((device) => {
-      const label = device.label.toLowerCase()
-      if (preferredType === 'front') {
-        return label.includes('front') || label.includes('user') || label.includes('selfie')
-      } else {
-        return label.includes('back') || label.includes('rear') || label.includes('environment')
+    const media = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: { ideal: isFrontCamera.value ? 'user' : 'environment' },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
       }
     })
-
-    let cameraId = devices[0].id
-    // If preferred camera type is found, use it
-    if (preferredCamera) {
-      cameraId = preferredCamera.id
-    } else {
-      // If preferred camera type isn't available, update the state to match what we're actually using
-      const firstCameraLabel = devices[0].label.toLowerCase()
-      const isFront =
-        firstCameraLabel.includes('front') ||
-        firstCameraLabel.includes('user') ||
-        firstCameraLabel.includes('selfie')
-      isFrontCamera.value = isFront
-      storageSet(CAMERA_PREFERENCE_KEY, isFront ? 'front' : 'back')
+    if (current !== session) {
+      media.getTracks().forEach((track) => track.stop())
+      return
     }
-
-    await html5QrCodeScanner.value!.start(
-      cameraId,
-      {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0,
-        disableFlip: false
-      },
-      (decodedText) => {
-        emit('qr-detected', decodedText)
-        stopScanning()
-      },
-      (_errorMessage) => {
-        // QR code detection error (normal when no QR code is in view)
-      }
-    )
-
+    stream = media
+    const el = video.value!
+    el.srcObject = media
+    await el.play()
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    hasMultipleCameras.value = devices.filter((d) => d.kind === 'videoinput').length > 1
+    const { readBarcodes } = await decoder
+    if (current !== session) return
     isScanning.value = true
     isLoading.value = false
-  } catch (err: any) {
-    console.error('Error starting QR scanner:', err)
-
-    if (err && err.name === 'NotAllowedError') {
-      errorMessage.value = t(
-        'Camera access denied. Please allow camera access in your browser settings.'
-      )
-    } else if (err && err.name === 'NotFoundError') {
-      errorMessage.value = t('No camera found on this device')
-    } else if (err && err.name === 'NotReadableError') {
-      errorMessage.value = t('Camera is already in use by another application')
-    } else {
-      errorMessage.value = t('Could not start QR code scanner')
-    }
-
+    readFrames(current, readBarcodes)
+  } catch (err) {
+    if (current !== session) return
+    console.error('Error starting the camera scanner:', err)
+    stopStream()
+    errorMessage.value = cameraErrorMessage(err)
     isLoading.value = false
   }
 }
 
-onUnmounted(() => {
-  stopScanning()
-})
+async function readFrames(
+  current: number,
+  readBarcodes: typeof import('@/lib/barcode/zxing').readBarcodes
+) {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return
+  while (current === session) {
+    const el = video.value
+    if (el && el.readyState >= 2 && el.videoWidth > 0) {
+      const scale = Math.min(1, MAX_FRAME_SIDE / Math.max(el.videoWidth, el.videoHeight))
+      canvas.width = Math.round(el.videoWidth * scale)
+      canvas.height = Math.round(el.videoHeight * scale)
+      ctx.drawImage(el, 0, 0, canvas.width, canvas.height)
+      try {
+        const [found] = await readBarcodes(ctx.getImageData(0, 0, canvas.width, canvas.height), {
+          tryHarder: true,
+          maxNumberOfSymbols: 1
+        })
+        if (found && current === session) {
+          stopScanner()
+          emit('qr-detected', found.text, found.format)
+          return
+        }
+      } catch (err) {
+        console.warn('Frame could not be read:', err)
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, FRAME_INTERVAL_MS))
+  }
+}
 
-onMounted(async () => {
-  startScanning()
-})
+onMounted(startScanning)
+onUnmounted(stopScanner)
 
 defineExpose({
-  hasCamera,
   startScanning,
   stopScanning
 })
@@ -149,17 +152,30 @@ defineExpose({
 
 <template>
   <div class="camera-scanner">
-    <div v-if="errorMessage" class="error-message mb-4 text-center text-red-500">
+    <div v-if="errorMessage" role="alert" class="error-message mb-4 text-center text-red-500">
       {{ errorMessage }}
     </div>
 
-    <!-- Scanner container -->
-    <div class="scanner-container relative z-50 mb-4 overflow-hidden rounded-lg">
-      <div :id="scannerContainerId" class="mx-auto w-full max-w-md"></div>
+    <div v-show="!errorMessage" class="scanner-container relative mb-4 overflow-hidden rounded-lg">
+      <video
+        ref="video"
+        class="mx-auto block w-full max-w-md"
+        :class="isFrontCamera && 'mirrored'"
+        playsinline
+        muted
+        :aria-label="t('Camera view')"
+      ></video>
+      <!-- A frame to aim with; any part of the view is read -->
+      <div v-if="isScanning" aria-hidden="true" class="viewfinder"></div>
+      <p
+        v-if="isLoading"
+        class="absolute inset-0 grid place-items-center text-sm text-white"
+        role="status"
+      >
+        {{ t('Starting the camera…') }}
+      </p>
 
-      <!-- Control buttons -->
       <div v-if="isScanning" class="absolute end-2 top-2 flex gap-2">
-        <!-- Switch Camera button - only show if multiple cameras are available -->
         <button
           v-if="hasMultipleCameras"
           class="rounded-full bg-white/80 p-2 text-black shadow-md transition-colors hover:bg-white/90 dark:bg-black/80 dark:text-white dark:hover:bg-black/90"
@@ -175,11 +191,10 @@ defineExpose({
             />
           </svg>
         </button>
-
-        <!-- Close button -->
         <button
           class="rounded-full bg-white/80 p-2 text-black shadow-md transition-colors hover:bg-white/90 dark:bg-black/80 dark:text-white dark:hover:bg-black/90"
           @click="stopScanning"
+          type="button"
           :aria-label="t('Close scanner')"
           :title="t('Close scanner')"
         >
@@ -193,7 +208,7 @@ defineExpose({
       </div>
     </div>
 
-    <button v-if="isScanning && !isLoading" class="button mt-4" @click="stopScanning">
+    <button class="button mt-4" type="button" @click="stopScanning">
       {{ t('Cancel') }}
     </button>
   </div>
@@ -206,43 +221,28 @@ defineExpose({
 }
 
 .scanner-container {
-  position: relative;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   background-color: #000;
   min-height: 300px;
 }
 
-/* Override some of the html5-qrcode library styles */
-:deep(video) {
-  width: 100% !important;
-  height: auto !important;
+video {
   border-radius: 8px;
   object-fit: cover;
 }
 
-:deep(img) {
-  max-width: 100%;
-  border-radius: 8px;
+/* The front camera is shown mirrored, as people expect from a selfie view. */
+.mirrored {
+  transform: scaleX(-1);
 }
 
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-radius: 50%;
-  border-top-color: #3498db;
-  animation: spin 1s ease-in-out infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.dark .spinner {
-  border-color: rgba(255, 255, 255, 0.1);
-  border-top-color: #3498db;
+.viewfinder {
+  position: absolute;
+  inset: 15% 10%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 
 .error-message {

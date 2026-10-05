@@ -5,14 +5,13 @@ import {
   getFileFromClipboardItems,
   getFileFromDataTransferItemList
 } from '@/utils/clipboard'
-import { Html5Qrcode } from 'html5-qrcode'
 import { describeScannedContent } from '@/utils/scannedContent'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import QRCodeCameraScanner from './QRCodeCameraScanner.vue'
 
 defineEmits<{
-  'create-qr': [data: string]
+  'create-qr': [data: string, format?: string]
 }>()
 
 const { t } = useI18n()
@@ -106,7 +105,7 @@ const pasteFromClipboard = async (event: ClipboardEvent | null) => {
     }
 
     scanFile(file)
-  } catch (err: any) {
+  } catch (err) {
     console.error('Clipboard paste failed', err)
   }
 }
@@ -118,8 +117,13 @@ onUnmounted(() => {
   window.removeEventListener('paste', pasteFromClipboard)
 })
 
-const onQRDetected = (data: string) => {
+const setCaptured = (data: string, format?: string) => {
   capturedData.value = data
+  capturedFormat.value = format
+}
+
+const onQRDetected = (data: string, format?: string) => {
+  setCaptured(data, format)
   showCameraScanner.value = false
 }
 
@@ -133,7 +137,7 @@ const startCameraScanning = () => {
 }
 
 const resetCapture = () => {
-  capturedData.value = ''
+  setCaptured('')
   errorMessage.value = null
   copySuccess.value = false
   showCameraScanner.value = false
@@ -145,35 +149,28 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const isLoading = ref(false)
 const isDraggingOver = ref(false)
 
-const catchScanFileError = async (err: Error, file: File) => {
-  console.warn('Html5Qrcode failed, will try fallback to nimiq/qr-scanner:', err)
-
-  const QrScanner = (await import('qr-scanner')).default
-
-  // Fallback to nimiq/qr-scanner lib
+// ZXing-C++ reads QR codes and every common barcode. qr-scanner (already
+// loaded for the QR page's scan check) gets a second look at QR codes it
+// misses, which helps with heavily styled ones.
+const scanFile = async (file: File) => {
+  isLoading.value = true
+  errorMessage.value = null
   try {
+    const { readBarcodes } = await import('@/lib/barcode/zxing')
+    const [found] = await readBarcodes(file, { tryHarder: true, maxNumberOfSymbols: 1 })
+    if (found) {
+      setCaptured(found.text, found.format)
+      return
+    }
+    const QrScanner = (await import('qr-scanner')).default
     const result = await QrScanner.scanImage(file, { returnDetailedScanResult: true })
-    capturedData.value = result.data
+    setCaptured(result.data, 'QRCode')
   } catch (err) {
-    console.error('Fallback to nimiq/qr-scanner failed:', err)
-    errorMessage.value = t('No QR code found in the image.')
+    console.warn('No code found in the image:', err)
+    errorMessage.value = t('No QR code or barcode found in the image.')
   } finally {
     isLoading.value = false
   }
-}
-
-const scanFile = (file: File) => {
-  isLoading.value = true
-  errorMessage.value = null
-
-  const html5QrCode = new Html5Qrcode('file-qr-reader')
-  html5QrCode
-    .scanFile(file, false)
-    .then((decodedText) => {
-      capturedData.value = decodedText
-      isLoading.value = false
-    })
-    .catch((err) => catchScanFileError(err, file))
 }
 
 const handleFileUpload = (event: Event) => {
@@ -226,7 +223,7 @@ defineExpose({
 <template>
   <div class="relative mx-auto w-full max-w-[500px]">
     <div v-if="capturedData" class="capture-result">
-      <p class="mb-4 text-xl font-semibold">{{ t('QR Code Content') }}</p>
+      <p class="mb-4 text-xl font-semibold">{{ t('Code content') }}</p>
 
       <!-- QR Code Type Badge -->
       <div class="mb-4 flex items-center justify-center">
@@ -280,7 +277,7 @@ defineExpose({
         </button>
         <button
           class="button flex w-full flex-row items-center justify-start gap-4"
-          @click="$emit('create-qr', capturedData)"
+          @click="$emit('create-qr', capturedData, capturedFormat)"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
             <path
@@ -288,7 +285,7 @@ defineExpose({
               d="M3 11h8V3H3zm2-6h4v4H5zM3 21h8v-8H3zm2-6h4v4H5zM13 3v8h8V3zm6 6h-4V5h4zM13 13h2v2h-2zm0 4h2v2h-2zm4-4h2v2h-2zm0 4h2v2h-2z"
             />
           </svg>
-          <span>{{ t('Create QR Code with this data') }}</span>
+          <span>{{ t('Create a code with this data') }}</span>
         </button>
       </div>
     </div>
@@ -305,13 +302,10 @@ defineExpose({
         <p>{{ t('Processing...') }}</p>
       </div>
 
-      <!-- Hidden div for file QR reader -->
-      <div id="file-qr-reader" class="hidden"></div>
-
       <div class="flex w-full flex-col items-center gap-4" v-if="!isLoading">
         <!-- Upload QR Code Image option -->
         <div class="mb-4 text-center">
-          <h3 class="mb-4 text-lg font-medium">{{ t('Scan a QR Code') }}</h3>
+          <h3 class="mb-4 text-lg font-medium">{{ t('Scan a QR code or barcode') }}</h3>
 
           <button
             :class="[
@@ -335,7 +329,7 @@ defineExpose({
                   d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm4 18H6V4h7v5h5z"
                 />
               </svg>
-              <p>{{ t('Upload QR Code Image') }}</p>
+              <p>{{ t('Upload an image') }}</p>
               <p class="text-sm text-gray-500">{{ t('or drag and drop an image here') }}</p>
             </div>
           </button>

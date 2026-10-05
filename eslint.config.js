@@ -74,6 +74,8 @@ export default [
         TextDecoder: 'readonly',
         crypto: 'readonly',
         DOMException: 'readonly',
+        HTMLVideoElement: 'readonly',
+        MediaStream: 'readonly',
         CanvasRenderingContext2D: 'readonly',
         ClipboardItem: 'readonly',
         CSS: 'readonly',

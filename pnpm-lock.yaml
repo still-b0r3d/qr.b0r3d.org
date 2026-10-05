@@ -92,9 +92,6 @@ importers:
       file-saver:
         specifier: 2.0.5
         version: 2.0.5
-      html5-qrcode:
-        specifier: 2.3.8
-        version: 2.3.8
       jszip:
         specifier: 3.10.1
         version: 3.10.1
@@ -2934,9 +2931,6 @@ packages:
   he@1.2.0:
     resolution: {integrity: sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==}
     hasBin: true
-
-  html5-qrcode@2.3.8:
-    resolution: {integrity: sha512-jsr4vafJhwoLVEDW3n1KvPnCCXWaQfRng0/EEYk1vNcQGcG/htAdhJX0be8YyqMoSz7+hZvOZSTAepsabiuhiQ==}
 
   human-signals@5.0.0:
     resolution: {integrity: sha512-AXcZb6vzzrFAUE61HnN4mpLqd/cSIwNQjtNWR0euPm6y0iqx3G4gOXaIDdtdDwZmhwe82LA6+zinmW4UBWVePQ==}
@@ -7390,8 +7384,6 @@ snapshots:
       function-bind: 1.1.2
 
   he@1.2.0: {}
-
-  html5-qrcode@2.3.8: {}
 
   human-signals@5.0.0: {}
 

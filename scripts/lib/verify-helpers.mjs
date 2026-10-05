@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url'
 import jsQR from 'jsqr'
 import { PNG } from 'pngjs'
 import sharp from 'sharp'
+import { prepareZXingModule, readBarcodes } from 'zxing-wasm/full'
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 
@@ -85,4 +86,23 @@ export async function decodeSvg(file) {
     .png()
     .toBuffer()
   return decodePng(png)
+}
+
+let zxingPrepared = false
+
+/** Decodes any barcode (EAN, Code 128, Data Matrix…) in an image file with ZXing-C++. */
+export async function decodeBarcode(file) {
+  if (!zxingPrepared) {
+    const wasm = fs.readFileSync(
+      path.join(ROOT, 'node_modules/zxing-wasm/dist/full/zxing_full.wasm')
+    )
+    prepareZXingModule({
+      overrides: {
+        wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength)
+      }
+    })
+    zxingPrepared = true
+  }
+  const [found] = await readBarcodes(new Uint8Array(fs.readFileSync(file)), { tryHarder: true })
+  return found ? found.text : null
 }

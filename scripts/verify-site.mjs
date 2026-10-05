@@ -2,7 +2,8 @@
 // Chromium and logs every request, including the service worker's, while it
 // checks the defaults, manifest, service worker, every preset, a self-hosted
 // font, all export formats, English-only text, file and camera scanning
-// (fake camera) and an offline reload. Fails if any request goes to another
+// (fake camera), another barcode type (made, downloaded and scanned back)
+// and an offline reload. Fails if any request goes to another
 // origin, except b0r3d.org's site-wide visitor stats beacon.
 //
 //   pnpm build && pnpm verify:site            # serves dist/ itself
@@ -14,7 +15,7 @@ import fs from 'fs'
 import path from 'path'
 import process from 'process'
 import { chromium } from 'playwright'
-import { decodePng, outputDir, ROOT, withSite } from './lib/verify-helpers.mjs'
+import { decodeBarcode, decodePng, outputDir, ROOT, withSite } from './lib/verify-helpers.mjs'
 
 const DEFAULT_DATA = 'https://b0r3d.org'
 const PKG_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version
@@ -205,6 +206,48 @@ async function run(base) {
     })
     check('camera scanner shows the camera feed', playing)
 
+    // Another barcode type: made, test-read and downloaded with zxing-wasm,
+    // which must load from this site, then scanned back on the Scan page.
+    await page.reload()
+    await page.waitForTimeout(800)
+    await page.locator('#code-type').selectOption('ean13')
+    const barcodeCheck = page.locator('#barcode-scan-check')
+    await barcodeCheck
+      .getByText('Scans.')
+      .waitFor({ timeout: 15000 })
+      .catch(() => {})
+    check(
+      'EAN-13 passes its scan check',
+      (await barcodeCheck.innerText().catch(() => '')).includes('Scans.')
+    )
+    const ean = await download('#barcode-download-png', 'ean13.png')
+    const eanText = await decodeBarcode(ean.file)
+    check('EAN-13 PNG decodes, check digit added', eanText === '9506000134352', eanText || '')
+    const wasmRequests = requests.filter((u) => /\.wasm(\?|$)/.test(u))
+    check(
+      'barcode maker (.wasm) loads from this site',
+      wasmRequests.length > 0 && wasmRequests.every((u) => u.startsWith(origin)),
+      wasmRequests[0] || 'no .wasm request'
+    )
+    await page
+      .getByRole('button', { name: /switch to scan mode/i })
+      .first()
+      .click()
+    await page.waitForTimeout(500)
+    await page.locator('input[type="file"]').setInputFiles(ean.file)
+    await page
+      .getByText('Product number')
+      .waitFor({ timeout: 10000 })
+      .catch(() => {})
+    check(
+      'scanning a barcode reads it back',
+      await page
+        .getByText('9506000134352')
+        .first()
+        .isVisible()
+        .catch(() => false)
+    )
+
     // Offline reload (served by the service worker)
     await context.setOffline(true)
     await page.reload().catch(() => {})
@@ -212,6 +255,18 @@ async function run(base) {
     check(
       'app reloads while offline',
       (await page.title()) === 'b0r3d QR' && (await page.locator('#app *').count()) > 10
+    )
+    await page
+      .locator('#code-type')
+      .selectOption('ean13')
+      .catch(() => {})
+    check(
+      'barcodes work offline once used',
+      await page
+        .locator('#barcode-preview img')
+        .waitFor({ timeout: 10000 })
+        .then(() => true)
+        .catch(() => false)
     )
     await context.setOffline(false)
   } finally {

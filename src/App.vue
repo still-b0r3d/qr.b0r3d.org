@@ -5,7 +5,12 @@ import QRCodeCreate from '@/components/QRCodeCreate.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import cupUrl from '@/assets/b0r3d-cup.png'
 import useDarkModePreference from '@/utils/useDarkModePreference'
-import type { BarcodeType, CodeType } from '@/lib/barcode/formats'
+import {
+  barcodeFormat,
+  codeTypeForScannedFormat,
+  type BarcodeType,
+  type CodeType
+} from '@/lib/barcode/formats'
 import { computed, defineAsyncComponent, ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -74,9 +79,17 @@ const setAppMode = (mode: AppMode) => {
   appMode.value = mode
 }
 
-const useCapturedDataInCreateMode = (data: string) => {
-  capturedData.value = data
-  codeType.value = 'qr'
+// "Create a code with this data" on the Scan page: a scanned barcode opens as
+// the same type, anything else as a QR code.
+const useCapturedDataInCreateMode = (data: string, format?: string) => {
+  const type = codeTypeForScannedFormat(format, data)
+  if (type === 'qr') {
+    capturedData.value = data
+  } else {
+    const normalize = barcodeFormat(type).normalizeRead
+    barcodeInitialData.value = { type, data: normalize ? normalize(data) : data }
+  }
+  codeType.value = type
   appMode.value = AppMode.Create
 }
 
