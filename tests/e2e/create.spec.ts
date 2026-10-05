@@ -275,9 +275,9 @@ test.describe('QR Code Creation and Management', () => {
     test('saved JPG should preserve the background color set on the default preset', async ({
       page
     }) => {
-      // The default preset (lyqht) loads automatically with background #697d80.
-      // Set a vivid red background that is clearly distinct from white so the
-      // bug (bgcolor always 'white') is easy to detect.
+      // The default preset (Plain) loads with a white background. Set a vivid
+      // red background that is clearly distinct from white so the bug
+      // (bgcolor always 'white') is easy to detect.
       const bgColor = '#ff0000'
       await page.locator('#background-color').fill(bgColor)
       // Add margin so the top-left corner area is guaranteed background colour.
@@ -420,8 +420,8 @@ test.describe('QR Code Creation and Management', () => {
     test('logo with cross-origin source does not taint the canvas on PNG export', async ({
       page
     }) => {
-      // The default preset (lyqht) uses a local placeholder; switch to a preset
-      // that references a public CDN logo (Vue.js preset uses iconify).
+      // Built-in presets only use bundled logos, so enter a cross-origin logo
+      // URL the way a visitor might paste one.
       await page.locator('#data').fill('crossorigin parity')
       await page.locator('#image-url').fill('https://api.iconify.design/logos:vue.svg')
       await openFrameSettings(page)
