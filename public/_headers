@@ -1,0 +1,25 @@
+# Response header rules, copied to the root of dist/ by the build.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: SAMEORIGIN
+  Content-Security-Policy: frame-ancestors 'self' https://b0r3d.org https://*.b0r3d.org
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+
+# Every file under assets/ has a content hash in its name, so a changed
+# file is always a new URL and these can be cached for good.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The page, service worker and manifest must be revalidated on every load so
+# a new deploy is picked up. "/" is listed because that is the URL visitors
+# request; /index.html is served from it.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/sw.js
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Cache-Control: no-cache
