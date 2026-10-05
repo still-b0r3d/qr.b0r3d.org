@@ -1,6 +1,8 @@
 # qr.b0r3d.org
 
 **b0r3d QR** is b0r3d's QR code generator and scanner: <https://qr.b0r3d.org>.
+It also makes and reads other barcodes (Data Matrix, EAN, Code 128 and more),
+tucked behind one "Code type" menu so the page stays a QR generator first.
 
 It makes **static QR codes only**. Whatever you type is encoded straight into
 the pattern, so there is no redirect link, no account and nothing that can ever
@@ -9,8 +11,11 @@ your device, and the app loads nothing from any other site (except a logo
 address you enter yourself). Like the rest of b0r3d.org, the site counts
 visits; that never includes what you type.
 
-- Text, URLs, email, phone, SMS, Wi-Fi, vCard, location, calendar events and
-  EPC (SEPA) payments
+- Text, URLs, email, phone, SMS, Wi-Fi, vCard, location, calendar events,
+  EPC (SEPA) payments and GS1 Digital Link product links
+- Other barcodes: Data Matrix, GS1 DataMatrix, Aztec, PDF417, EAN-13, EAN-8,
+  UPC-A, Code 128, GS1-128, ITF-14 and Code 39, with check digits added for
+  you and GS1 data checked
 - Export to PNG, JPG, SVG and plain-text QR codes, or copy to the clipboard
 - Batch export from a CSV file
 - Frames with captions, logos, colours and dot styles; save and load settings
@@ -22,7 +27,7 @@ visits; that never includes what you type.
   tracking parameters and stray spaces, with one-click fixes
 - Export at a print size (mm or inches) and DPI, with module-size and
   scanning-distance guidance
-- Scan codes from an image, the clipboard or the camera
+- Scan QR codes and barcodes from an image, the clipboard or the camera
 - Installs as an offline app
 
 ## Based on Mini QR
@@ -37,6 +42,13 @@ contributors for the app this is built on.
 GPL-3.0, the same as Mini QR. See [LICENSE](LICENSE). You can use, study, share
 and change this program under the terms of the GNU General Public License,
 version 3. It comes with no warranty.
+
+Barcodes other than QR are made with [zint](https://sourceforge.net/projects/zint/)
+(BSD-3-Clause) and read with [ZXing-C++](https://github.com/zxing-cpp/zxing-cpp)
+(Apache-2.0), both from the [zxing-wasm](https://github.com/Sec-ant/zxing-wasm)
+build (MIT). Their licence texts and copyright notices ship with the site in
+[`third-party-licenses.txt`](public/third-party-licenses.txt), linked from the
+barcode view.
 
 The frame fonts come from [Fontsource](https://fontsource.org) packages and are
 licensed under the SIL Open Font License 1.1; the font files keep their embedded
@@ -111,6 +123,44 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
 - **Repository.** Upstream's GitHub workflows, Docker and nginx files,
   contributor docs and translation-service config were not carried over.
 
+- **Other barcode types** (2026-10-05). A "Code type" menu above the
+  settings (QR code by default) swaps the QR editor for a plain barcode one:
+  Data Matrix, GS1 DataMatrix, Aztec, PDF417, EAN-13, EAN-8, UPC-A, Code 128,
+  GS1-128, ITF-14 and Code 39. Check digits are added, or checked when typed;
+  GS1 data is checked for its syntax and check digits; problems are explained
+  under the field. Each code gets the same test decode as QR codes, colours,
+  PNG/JPG/SVG downloads, copy, and print sizes with whole-pixel bars. The
+  encoder (zxing-wasm, ~730 KB gzipped) is served from this site and loads only
+  when a barcode type is picked; the service worker keeps it for offline use.
+- **Scanning with ZXing-C++** (2026-10-05). The Scan page used html5-qrcode,
+  unmaintained since 2023; it now uses the same zxing-wasm build, so every type
+  the app makes scans back, from files, the clipboard or the camera. A scanned
+  barcode can be recreated as the same type, and results are labelled using
+  the same parser as Data templates (product numbers are never offered as
+  phone numbers).
+- **Data templates** (2026-10-05). Opening the editor on existing data no
+  longer damages it: Wi-Fi security type and escaped characters, SMS messages
+  with colons, vCard commas and semicolons, and event times all come back as
+  they were. New: GS1 Digital Link product links, IBAN check-digit checks on
+  SEPA payments, WPA3-only Wi-Fi. vCard 2.1 marks non-ASCII text as UTF-8,
+  company cards get a name (FN), events get a UID, and batch vCards honour
+  "4.0" and "2.1" as written in the CSV.
+- **Fixes** (2026-10-05). The app keeps working when the browser blocks or
+  fills its storage (it used to show a blank page or throw on every edit);
+  uploaded logos and backgrounds are shrunk to 1024 / 2048 px; the Background
+  checkbox can be turned back on after reloading a transparent code; batch
+  export no longer waits a second per row and leaves the editor on the
+  previewed row; CSVs separated by semicolons or tabs, or saved in
+  Windows-1252, are read correctly; the Scan page no longer adds a paste
+  listener on every visit.
+- **Lighter page** (2026-10-05). The scanner and JSZip load only when used:
+  the main script is 615 KB instead of 1,058 KB (216 KB gzipped instead of
+  348 KB).
+- **Content-Security-Policy** (2026-10-05). The built page carries a policy
+  that only allows scripts from this site (plus the visitor-stats beacon), so
+  the browser enforces "nothing from other sites"; `public/_headers` adds a
+  Permissions-Policy (camera only) and COOP.
+
 Ideas under consideration are in [TODO.md](TODO.md).
 
 ## Versioning
@@ -135,6 +185,7 @@ and is never bumped by hand.
 | `0.33.0+b0r3d.2` | 2026-10-05 | Logos from a web address, English only                         |
 | `0.33.0+b0r3d.3` | 2026-10-05 | Version and build shown in the footer                          |
 | `0.33.0+b0r3d.4` | 2026-10-05 | Footer trimmed to one line, Mini QR credit moved to the README |
+| `0.33.0+b0r3d.5` | 2026-10-05 | Other barcode types, ZXing-C++ scanning, data template fixes   |
 
 ## Development
 
@@ -160,7 +211,8 @@ pnpm build
 pnpm verify:static    # exports a URL, emoji text and Wi-Fi as PNG + SVG and
                       # checks the decoded payloads match the input byte for byte
 pnpm verify:site      # manifest, service worker, offline reload, presets, fonts,
-                      # every export, scanning; fails on any request to another site
+                      # every export, scanning, a barcode made and scanned back,
+                      # Content-Security-Policy; fails on any request to another site
 ```
 
 Without an argument they serve `dist/` themselves; pass a URL (for example

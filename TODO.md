@@ -2,8 +2,7 @@
 
 ## Maybe
 
-Ideas worth considering, not decided yet. Both came from comparing the app
-with [zint](https://github.com/zint/zint).
+Ideas worth considering, not decided yet.
 
 ### Mark non-Latin text as UTF-8 (ECI 26)
 
@@ -19,42 +18,34 @@ with [zint](https://github.com/zint/zint).
   Test on real phones before shipping: iOS Camera, Google Lens, Samsung
   Camera, a few older Android scanner apps and in-app scanners (WeChat,
   WhatsApp). Consider an opt-in setting rather than a default.
-- **How:** only for data with non-ASCII characters; ASCII data stays exactly
-  as it is. The current encoder (`qrcode-generator`) can't emit ECI segments,
-  so this needs a small MIT-licensed encoder that can (for example
-  `qrcodegen`) or zint. `src/lib/qr-code/matrix.ts` is the only place that
-  talks to the encoder.
+- **How:** zint now ships with the app (zxing-wasm, used for the other
+  barcode types), and its writer takes an `eci=26` option; with no option it
+  adds ECI 26 by itself for text that isn't Latin-1, and uses Kanji mode for
+  Japanese. Writing with `scale: 1, addQuietZones: false` returns the bare
+  module grid, which the QR styling could draw from in place of
+  `qrcode-generator` (`src/lib/qr-code/matrix.ts` is the only place that talks
+  to the encoder). The catch: zint then loads with the QR page, about 350 KB
+  gzipped for the writer alone, so only do it for non-ASCII text, loaded on
+  demand.
 - **Done when:** the phone checks pass, `pnpm verify:static` still matches
   byte for byte, and a unit test asserts the ECI header for non-ASCII input.
 
-### Other barcode types
+### More for the other barcode types
 
-- **What:** static barcodes other than QR: Data Matrix, Aztec, PDF417,
-  Code 128 / GS1-128, EAN-13 / UPC-A, ITF-14. Useful for product labels,
-  shipping, inventory and tickets.
-- **Options:**
-  - zint's encoding library (C, BSD-3-Clause, compatible with GPL-3.0)
-    compiled to WebAssembly with Emscripten. The normal `pnpm build` has no
-    Emscripten, so the `.wasm` would be committed together with a script that
-    rebuilds it.
-  - `bwip-js` (pure JavaScript, MIT, ~100 barcode types): no build step.
-- **Decisions and costs:**
-  - The site stops being only a QR generator.
-  - The QR styling (dots, corners, logo, frame) doesn't apply; these would
-    export plain black on white.
-  - The encoder should load only when a non-QR type is picked, so the QR
-    page doesn't get heavier.
-  - The Scan page would need to recognise the new types too.
-  - Both licenses require shipping the copyright notice (which names the
-    library's author) with the site, e.g. a licenses file. That is an
-    exception to the "no personal names" rule for visitor-facing material.
-  - Everything stays bundled locally; `pnpm verify:site` must still report
-    no requests to other sites.
+- **Batch export** from a CSV, as QR codes have.
+- **UPC-E and ISBN**: zint makes both; UPC-E needs its own check-digit rules
+  for the test decode, and ISBN-10 input is converted to a 978 EAN-13.
+- **Bar height** for 1D codes (zint's default is 50 modules; GS1's EAN-13
+  spec is taller). zxing-wasm doesn't pass a height option through, so it
+  would mean scaling the SVG's bars, not its text.
+- **Swiss QR-bill**: the Swiss payment QR needs structured addresses,
+  QR-IBAN/reference rules and the Swiss cross in the middle; `swissqrbill`
+  (MIT) could build and check it. Left out for now as it's Switzerland-only.
 
 ### Not planned
 
-Also looked at and left out: Micro QR and rectangular Micro QR (most phone
-cameras, and our own Scan page, can't read them), structured append (phone
+Also looked at and left out: Micro QR and rectangular Micro QR (zint can make
+them, but most phone cameras can't read them), structured append (phone
 scanners ignore it), manual mask selection, and extra export formats such as
 EPS and EMF (SVG covers nearly everyone; EPS or PDF for plain codes could be
-added later without zint).
+added later).

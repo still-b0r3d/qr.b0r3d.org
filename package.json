@@ -1,7 +1,7 @@
 {
   "name": "qr-b0r3d-org",
   "private": true,
-  "version": "0.33.0+b0r3d.4",
+  "version": "0.33.0+b0r3d.5",
   "type": "module",
   "packageManager": "pnpm@10.0.0",
   "scripts": {
