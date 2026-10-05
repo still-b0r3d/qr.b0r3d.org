@@ -65,8 +65,11 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
   cup logo, faint scanlines behind the app, and a line saying codes are static
   and never expire. Dark mode is the default; the light/dark/system toggle
   stays. The QR code itself is never tinted by the theme.
-- **Footer.** Links back to b0r3d.org and credits Mini QR, the license and this
-  source code. It is shown on every screen size and cannot be turned off.
+- **Footer.** Links back to b0r3d.org and shows the version and build, with
+  links to this source code and the license. It is shown on every screen size
+  and cannot be turned off. Mini QR is credited here in the README rather than
+  on screen (from `0.33.0+b0r3d.4`); its own footer carried no license notice
+  and could be hidden with `VITE_HIDE_CREDITS`.
 - **Build and hosting.** Production settings in `.env.production`, Node version
   in `.node-version`, response headers (caching and security) in
   `public/_headers`. The service worker no longer precaches fonts, start-up
@@ -126,11 +129,12 @@ The footer shows the version and the **build**: the commit the site was built
 from, linked to its source on GitHub. The build is filled in automatically
 and is never bumped by hand.
 
-| Version          | Date       | What changed                           |
-| ---------------- | ---------- | -------------------------------------- |
-| `0.33.0+b0r3d.1` | 2026-10-04 | First release on qr.b0r3d.org          |
-| `0.33.0+b0r3d.2` | 2026-10-05 | Logos from a web address, English only |
-| `0.33.0+b0r3d.3` | 2026-10-05 | Version and build shown in the footer  |
+| Version          | Date       | What changed                                                   |
+| ---------------- | ---------- | -------------------------------------------------------------- |
+| `0.33.0+b0r3d.1` | 2026-10-04 | First release on qr.b0r3d.org                                  |
+| `0.33.0+b0r3d.2` | 2026-10-05 | Logos from a web address, English only                         |
+| `0.33.0+b0r3d.3` | 2026-10-05 | Version and build shown in the footer                          |
+| `0.33.0+b0r3d.4` | 2026-10-05 | Footer trimmed to one line, Mini QR credit moved to the README |
 
 ## Development
 

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-const UPSTREAM_URL = 'https://github.com/lyqht/mini-qr'
+// The Source link is the GPL's pointer to the source code for what this page
+// delivers, so it stays. Mini QR's own footer had no license notice, so the
+// credit to it lives in README.md rather than on screen.
 const SOURCE_URL = 'https://github.com/still-b0r3d/qr.b0r3d.org'
 const LICENSE_URL = `${SOURCE_URL}/blob/main/LICENSE`
 // Both come from vite.config.js; a build without them shows "dev".
@@ -11,16 +13,7 @@ const COMMIT_URL = `${SOURCE_URL}/commit/${COMMIT}`
 <template>
   <footer class="app-footer text-zinc-600 dark:text-zinc-400">
     <a href="https://b0r3d.org" class="back-link">← b0r3d.org</a>
-    <div class="credit">
-      Based on
-      <a :href="UPSTREAM_URL" target="_blank" rel="noopener noreferrer">Mini QR</a>
-      by Estee Tey
-      <span aria-hidden="true"> · </span>
-      <a :href="LICENSE_URL" target="_blank" rel="noopener noreferrer">GPL-3.0</a>
-      <span aria-hidden="true"> · </span>
-      <a :href="SOURCE_URL" target="_blank" rel="noopener noreferrer">Source</a>
-    </div>
-    <div class="version" data-testid="app-version">
+    <div data-testid="app-version">
       b0r3d QR v{{ VERSION }}
       <template v-if="COMMIT">
         <span aria-hidden="true"> · </span>
@@ -33,6 +26,10 @@ const COMMIT_URL = `${SOURCE_URL}/commit/${COMMIT}`
           >{{ COMMIT.slice(0, 7) }}</a
         >
       </template>
+      <span aria-hidden="true"> · </span>
+      <a :href="SOURCE_URL" target="_blank" rel="noopener noreferrer">Source</a>
+      <span aria-hidden="true"> · </span>
+      <a :href="LICENSE_URL" target="_blank" rel="noopener noreferrer">GPL-3.0</a>
     </div>
   </footer>
 </template>
@@ -49,10 +46,6 @@ const COMMIT_URL = `${SOURCE_URL}/commit/${COMMIT}`
   font-size: 0.875rem;
   line-height: 1.5;
   text-align: center;
-}
-
-.version {
-  font-size: 0.75rem;
 }
 
 .back-link {

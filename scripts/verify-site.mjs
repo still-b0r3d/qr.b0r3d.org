@@ -80,7 +80,9 @@ async function run(base) {
     const back = await page.locator('footer a', { hasText: '← b0r3d.org' }).getAttribute('href')
     check('footer links back to b0r3d.org', back === 'https://b0r3d.org')
     const versionLine = page.getByTestId('app-version')
-    const buildHref = await versionLine.getByRole('link').getAttribute('href')
+    const buildHref = await versionLine
+      .getByRole('link', { name: /^[0-9a-f]{7}$/ })
+      .getAttribute('href')
     check(
       'footer shows the version and build',
       (await versionLine.innerText()).includes(`b0r3d QR v${PKG_VERSION}`) &&
