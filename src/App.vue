@@ -5,6 +5,7 @@ import QRCodeCreate from '@/components/QRCodeCreate.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import cupUrl from '@/assets/b0r3d-cup.png'
 import useDarkModePreference from '@/utils/useDarkModePreference'
+import type { BarcodeType, CodeType } from '@/lib/barcode/formats'
 import { computed, defineAsyncComponent, ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -12,8 +13,14 @@ const { t } = useI18n()
 const { isDarkMode, isDarkModePreferenceSetBySystem, toggleDarkModePreference } =
   useDarkModePreference()
 
-// The scanner (and its decoder) only loads when someone opens Scan.
+// The scanner (and its decoder) only loads when someone opens Scan, and the
+// barcode maker when a type other than QR is picked.
 const QRCodeScan = defineAsyncComponent(() => import('@/components/QRCodeScan.vue'))
+const BarcodeCreate = defineAsyncComponent(() => import('@/components/BarcodeCreate.vue'))
+
+// QR is the default; the other types are behind the "Code type" menu.
+const codeType = ref<CodeType>('qr')
+const barcodeInitialData = ref<{ type: BarcodeType; data: string } | null>(null)
 
 const capturedData = ref<string>('')
 const qrCodeScanRef = ref<InstanceType<typeof QRCodeScanComponent> | null>(null)
@@ -69,6 +76,7 @@ const setAppMode = (mode: AppMode) => {
 
 const useCapturedDataInCreateMode = (data: string) => {
   capturedData.value = data
+  codeType.value = 'qr'
   appMode.value = AppMode.Create
 }
 
@@ -273,11 +281,29 @@ const isModeToggleDisabled = computed(() => {
         </a>
         <p class="static-note">
           {{
-            t('Static QR codes: what you enter is stored in the code itself, so it never expires.')
+            appMode === AppMode.Create && codeType !== 'qr'
+              ? t(
+                  'Static barcodes: what you enter is stored in the code itself, so it never expires.'
+                )
+              : t(
+                  'Static QR codes: what you enter is stored in the code itself, so it never expires.'
+                )
           }}
         </p>
         <div v-if="appMode === AppMode.Create">
-          <QRCodeCreate :initial-data="capturedData" />
+          <!-- Kept mounted while another type is shown, so switching back keeps your QR code -->
+          <div v-show="codeType === 'qr'">
+            <QRCodeCreate
+              v-model:code-type="codeType"
+              :initial-data="capturedData"
+              :active="codeType === 'qr'"
+            />
+          </div>
+          <BarcodeCreate
+            v-if="codeType !== 'qr'"
+            v-model:code-type="codeType"
+            :initial-data="barcodeInitialData"
+          />
         </div>
         <div v-else class="flex flex-col items-center justify-center py-8">
           <QRCodeScan ref="qrCodeScanRef" @create-qr="useCapturedDataInCreateMode" />

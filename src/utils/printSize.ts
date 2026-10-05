@@ -94,6 +94,48 @@ export function printGuidance(
   }
 }
 
+/**
+ * Narrowest bar (X-dimension) below which barcodes get hard to print and
+ * scan for most scanners. Retail EAN/UPC go down to 0.264 mm at 80% size.
+ */
+export const MIN_BAR_MM = 0.25
+
+export interface BarcodePrintGuidance {
+  /** Exact output size; every module is a whole number of pixels. */
+  widthPx: number
+  heightPx: number
+  /** Pixels per module. */
+  modulePx: number
+  /** Narrowest bar or module on paper. */
+  moduleMm: number
+  /** Width on paper after rounding modules to whole pixels. */
+  actualWidthMm: number
+  tooSmall: boolean
+}
+
+/**
+ * Print size for a barcode `modulesWide` × `modulesHigh` modules (quiet zones
+ * and text included). Bars are kept to whole pixels, since blurred bar edges
+ * make barcodes harder to read, so the width comes out close to the one asked
+ * for rather than exact.
+ */
+export function barcodePrintGuidance(
+  settings: Pick<PrintSettings, 'width' | 'unit' | 'dpi'>,
+  modulesWide: number,
+  modulesHigh: number
+): BarcodePrintGuidance {
+  const modulePx = Math.max(1, Math.round(printWidthPx(settings) / modulesWide))
+  const moduleMm = (modulePx / settings.dpi) * MM_PER_INCH
+  return {
+    widthPx: modulePx * modulesWide,
+    heightPx: modulePx * modulesHigh,
+    modulePx,
+    moduleMm,
+    actualWidthMm: moduleMm * modulesWide,
+    tooSmall: moduleMm < MIN_BAR_MM
+  }
+}
+
 /** "0.48 mm" / "0.019 in": enough precision to compare against the 0.4 mm guide. */
 export function formatSmallLength(mm: number, unit: PrintUnit): string {
   return unit === 'in' ? `${fromMillimetres(mm, 'in').toFixed(3)} in` : `${mm.toFixed(2)} mm`

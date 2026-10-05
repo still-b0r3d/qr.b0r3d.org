@@ -9,6 +9,10 @@ defineProps<{
   /** What the test decode read, for a mismatch. */
   decoded: string | null
   warnings: ScanWarning[]
+  /** A barcode other than QR, which has no dots, logo or error correction to adjust. */
+  barcode?: boolean
+  /** Element id; defaults to scan-check. */
+  id?: string
 }>()
 
 const { t } = useI18n()
@@ -34,7 +38,7 @@ function warningText(w: ScanWarning): string {
 </script>
 
 <template>
-  <div id="scan-check" class="flex w-80 max-w-full flex-col gap-1 text-start text-sm">
+  <div :id="id ?? 'scan-check'" class="flex w-80 max-w-full flex-col gap-1 text-start text-sm">
     <div aria-live="polite" class="flex items-start gap-2">
       <template v-if="status === 'checking'">
         <span class="text-zinc-500 dark:text-zinc-400">{{ t('Checking that it scans…') }}</span>
@@ -46,9 +50,11 @@ function warningText(w: ScanWarning): string {
       <template v-else-if="status === 'unreadable'">
         <span aria-hidden="true" class="scan-bad">✗</span>
         <span class="scan-bad">{{
-          t(
-            "Didn't scan in a test decode. Try more contrast, plainer dots, a smaller logo or more error correction."
-          )
+          barcode
+            ? t("Didn't scan in a test decode. Try more contrast or a larger size.")
+            : t(
+                "Didn't scan in a test decode. Try more contrast, plainer dots, a smaller logo or more error correction."
+              )
         }}</span>
       </template>
       <template v-else-if="status === 'mismatch'">

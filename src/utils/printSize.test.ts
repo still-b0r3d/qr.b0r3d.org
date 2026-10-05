@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Buffer } from 'node:buffer'
 import sharp from 'sharp'
 import {
+  barcodePrintGuidance,
   checkPrintSettings,
   DEFAULT_PRINT_SETTINGS,
   formatDistance,
@@ -113,5 +114,30 @@ describe('DPI metadata', () => {
       '<svg width="50mm" height="60mm" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 300"><rect/></svg>'
     )
     expect(setSvgPrintSize(svg, 2, 'in')).toContain('width="2in" height="2.4in"')
+  })
+})
+
+describe('barcodePrintGuidance', () => {
+  it('keeps every module a whole number of pixels, close to the width asked for', () => {
+    // An EAN-13 is 113 modules wide with its quiet zones; 37.29 mm is 100% size.
+    const g = barcodePrintGuidance({ width: 37.29, unit: 'mm', dpi: 300 }, 113, 59)
+    expect(g.modulePx).toBe(4)
+    expect(g.widthPx).toBe(452)
+    expect(g.heightPx).toBe(236)
+    expect(g.actualWidthMm).toBeCloseTo(38.27, 2)
+    expect(g.moduleMm).toBeCloseTo(0.3387, 3)
+    expect(g.tooSmall).toBe(false)
+  })
+
+  it('never goes below one pixel per module, and flags bars that are too thin', () => {
+    const g = barcodePrintGuidance({ width: 10, unit: 'mm', dpi: 150 }, 113, 59)
+    expect(g.modulePx).toBe(1)
+    expect(g.tooSmall).toBe(true)
+  })
+
+  it('works in inches', () => {
+    const g = barcodePrintGuidance({ width: 2, unit: 'in', dpi: 600 }, 100, 50)
+    expect(g.modulePx).toBe(12)
+    expect(g.actualWidthMm).toBeCloseTo(50.8, 1)
   })
 })

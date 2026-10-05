@@ -129,6 +129,20 @@ export default defineConfig(({ mode }) => {
               }
             },
             {
+              // The barcode maker/reader (zxing-wasm) loads only when a barcode
+              // type or the Scan page is used; cache it then, so it also works
+              // offline afterwards without every visitor downloading it.
+              urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.endsWith('.wasm'),
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'wasm',
+                expiration: {
+                  maxEntries: 4,
+                  maxAgeSeconds: 31536000 // 1 year; files are content-hashed
+                }
+              }
+            },
+            {
               urlPattern: ({ request }) => request.destination === 'document',
               handler: 'NetworkFirst',
               options: {

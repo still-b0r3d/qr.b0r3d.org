@@ -5,7 +5,9 @@ import {
   DPI_OPTIONS,
   formatDistance,
   formatSmallLength,
+  MIN_BAR_MM,
   MIN_MODULE_MM,
+  type BarcodePrintGuidance,
   type PrintGuidance,
   type PrintSettings,
   type PrintSettingsProblem
@@ -15,7 +17,12 @@ const settings = defineModel<PrintSettings>({ required: true })
 const props = defineProps<{
   guidance: PrintGuidance | null
   problem: PrintSettingsProblem | null
+  /** Barcodes other than QR: bar-based guidance instead of the QR one. */
+  barcodeGuidance?: BarcodePrintGuidance | null
+  /** Prefix for element ids, so two copies on one page don't clash. */
+  idPrefix?: string
 }>()
+const id = (name: string) => `${props.idPrefix ?? 'print'}-${name}`
 const { t } = useI18n()
 
 const update = (patch: Partial<PrintSettings>) => {
@@ -37,10 +44,10 @@ const problemText = computed(() => {
 </script>
 
 <template>
-  <div id="print-size" class="flex w-full flex-col gap-2 text-start">
+  <div :id="id('size')" class="flex w-full flex-col gap-2 text-start">
     <label class="flex items-center gap-2 !text-base">
       <input
-        id="print-size-enabled"
+        :id="id('size-enabled')"
         type="checkbox"
         :checked="settings.enabled"
         @change="update({ enabled: ($event.target as HTMLInputElement).checked })"
@@ -50,9 +57,9 @@ const problemText = computed(() => {
     <template v-if="settings.enabled">
       <div class="flex flex-wrap items-end gap-2">
         <div class="flex flex-col">
-          <label for="print-width" class="!text-sm">{{ t('Width') }}</label>
+          <label :for="id('width')" class="!text-sm">{{ t('Width') }}</label>
           <input
-            id="print-width"
+            :id="id('width')"
             type="number"
             min="1"
             step="any"
@@ -62,9 +69,9 @@ const problemText = computed(() => {
           />
         </div>
         <div class="flex flex-col">
-          <label for="print-unit" class="sr-only">{{ t('Unit') }}</label>
+          <label :for="id('unit')" class="sr-only">{{ t('Unit') }}</label>
           <select
-            id="print-unit"
+            :id="id('unit')"
             class="!ms-0 !w-20 !p-2 text-input"
             :value="settings.unit"
             @change="
@@ -76,9 +83,9 @@ const problemText = computed(() => {
           </select>
         </div>
         <div class="flex flex-col">
-          <label for="print-dpi" class="!text-sm">{{ t('Resolution') }}</label>
+          <label :for="id('dpi')" class="!text-sm">{{ t('Resolution') }}</label>
           <select
-            id="print-dpi"
+            :id="id('dpi')"
             class="!ms-0 !w-28 !p-2 text-input"
             :value="settings.dpi"
             @change="update({ dpi: Number(($event.target as HTMLSelectElement).value) })"
@@ -88,8 +95,31 @@ const problemText = computed(() => {
         </div>
       </div>
       <p v-if="problem" role="alert" class="print-problem text-xs">{{ problemText }}</p>
+      <template v-else-if="barcodeGuidance">
+        <p :id="id('guidance')" class="text-xs text-zinc-600 dark:text-zinc-400">
+          {{
+            t(
+              '{w} × {h} px, {width} wide so every bar is whole pixels. The narrowest bar is {module}.',
+              {
+                w: barcodeGuidance.widthPx,
+                h: barcodeGuidance.heightPx,
+                width: formatSmallLength(barcodeGuidance.actualWidthMm, settings.unit),
+                module: formatSmallLength(barcodeGuidance.moduleMm, settings.unit)
+              }
+            )
+          }}
+        </p>
+        <p v-if="barcodeGuidance.tooSmall" role="status" class="print-problem text-xs">
+          ⚠
+          {{
+            t('Bars under about {min} are hard to print and scan. Make it wider.', {
+              min: formatSmallLength(MIN_BAR_MM, settings.unit)
+            })
+          }}
+        </p>
+      </template>
       <template v-else-if="guidance">
-        <p id="print-guidance" class="text-xs text-zinc-600 dark:text-zinc-400">
+        <p :id="id('guidance')" class="text-xs text-zinc-600 dark:text-zinc-400">
           {{
             t('{w} × {h} px. Each module is {module}; scans from up to about {distance}.', {
               w: guidance.widthPx,
@@ -110,7 +140,11 @@ const problemText = computed(() => {
         </p>
       </template>
       <p class="text-xs text-zinc-500 dark:text-zinc-400">
-        {{ t('Applies to PNG, JPG and SVG downloads, including batch exports.') }}
+        {{
+          barcodeGuidance !== undefined
+            ? t('Applies to PNG, JPG and SVG downloads.')
+            : t('Applies to PNG, JPG and SVG downloads, including batch exports.')
+        }}
       </p>
     </template>
   </div>

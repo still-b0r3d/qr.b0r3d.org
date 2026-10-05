@@ -53,6 +53,8 @@ import { parseCSV, readCSVFile, validateCSVData, type CSVParsingResult } from '@
 import { generateBatchExportFilename, processCsvDataForBatch } from '@/utils/csvBatchProcessing'
 import { getNumericCSSValue } from '@/utils/formatting'
 import FitScaleBox from '@/components/FitScaleBox.vue'
+import CodeTypePicker from '@/components/CodeTypePicker.vue'
+import type { CodeType } from '@/lib/barcode/formats'
 import {
   allFramePresets,
   defaultFramePreset,
@@ -114,7 +116,11 @@ import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
   initialData?: string
+  /** False while another code type is shown in its place. */
+  active?: boolean
 }>()
+// QR by default; picking another type swaps this view for the barcode one.
+const codeType = defineModel<CodeType>('codeType', { default: 'qr' })
 
 const mainContentContainer = ref<HTMLElement | null>(null)
 const isLarge = useMediaQuery('(min-width: 768px)')
@@ -228,7 +234,9 @@ onUnmounted(() => exportSheetObserver?.disconnect())
 // Published as a CSS variable because the app footer comes after the
 // settings; AppFooter pads itself by this amount so it isn't hidden either.
 const settingsBottomPadding = computed(() =>
-  isLarge.value ? undefined : `${Math.round(exportSheetHeight.value) + 24}px`
+  isLarge.value || props.active === false
+    ? undefined
+    : `${Math.round(exportSheetHeight.value) + 24}px`
 )
 const SHEET_CLEARANCE_VAR = '--export-sheet-clearance'
 watch(
@@ -2055,6 +2063,9 @@ const updateDataFromModal = (newData: string) => {
       :class="{ 'mode-animating': isModeAnimating }"
     >
       <h2 class="sr-only">{{ t('Settings to customize your QR code') }}</h2>
+
+      <!-- Only while shown: the barcode view has its own, and ids must stay unique -->
+      <CodeTypePicker v-if="active !== false" v-model="codeType" />
 
       <!-- View mode toggle: Simple shows only the data field plus pinned
            fields; Full shows every setting. Sits at the top of the settings
