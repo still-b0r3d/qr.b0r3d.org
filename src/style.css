@@ -1,0 +1,231 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-weight: 400;
+  color-scheme: light dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  transition-duration: 300ms;
+  transition-property: background-color, color;
+  --scrollbar-width: 8px;
+
+  @media screen and (prefers-reduced-motion: reduce), (update: slow) {
+    transition-duration: 0s;
+  }
+}
+
+::selection {
+  @apply bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100;
+}
+
+::-moz-selection {
+  @apply bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-zinc-100 dark:bg-zinc-800;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-zinc-300 dark:bg-zinc-600;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-zinc-400 dark:bg-zinc-500;
+}
+
+/* Hide scrollbar class */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+a {
+  color: #0000ee;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+a:visited {
+  color: #551a8b;
+}
+
+a:hover {
+  text-decoration: none;
+}
+
+a:active {
+  color: #ee0000;
+}
+
+body {
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+  /* Dynamic viewport height matches the visible area on mobile (excludes the
+     browser URL bar), so the scroll container's bottom lines up with what the
+     user can actually see. Falls back to 100vh on older browsers. */
+  min-height: 100dvh;
+}
+
+#app {
+  margin: 0 auto;
+  text-align: center;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+label {
+  @apply self-start text-balance;
+}
+
+svg {
+  @apply shrink-0;
+}
+
+p {
+  @apply !font-normal;
+}
+
+p,
+label,
+legend {
+  @apply text-lg font-semibold text-gray-700 dark:text-gray-100;
+}
+
+.text-input {
+  @apply bg-zinc-50 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100;
+  @apply rounded-lg shadow transition-shadow hover:shadow-md;
+  @apply outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 dark:focus-visible:ring-zinc-200;
+  @apply ms-1 w-full resize-none appearance-none rounded p-4;
+}
+
+.text-input:out-of-range {
+  @apply text-red-600 ring-1 ring-red-500 focus-visible:ring-red-500 dark:text-red-400 dark:focus-visible:ring-red-400;
+}
+
+input[type='color'] {
+  @apply outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 dark:focus-visible:ring-zinc-200;
+  @apply box-border rounded border bg-transparent p-0 text-zinc-700 shadow focus-visible:shadow dark:text-zinc-100;
+}
+
+fieldset {
+  @apply rounded-sm outline-none focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-slate-500;
+}
+
+input[type='radio'] {
+  -webkit-appearance: none;
+  appearance: none;
+  @apply m-0 grid h-[1.15em] w-[1.15em] -translate-y-[0.075em] place-content-center rounded-full border-[0.15em] border-current bg-white text-current dark:bg-zinc-800;
+}
+
+input[type='radio']::before {
+  content: '';
+  @apply h-[0.65em] w-[0.65em] scale-0 rounded-full bg-zinc-800 shadow-[inset_1em_1em_currentColor] transition-transform duration-100 ease-in-out dark:bg-zinc-200;
+}
+
+input[type='radio']:checked::before {
+  @apply scale-100;
+}
+
+input[type='radio']:focus-visible {
+  @apply outline-none ring-0;
+}
+
+.radio {
+  @apply grid grid-cols-[1em_auto] items-center gap-2 rounded-lg p-2;
+  @apply outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2;
+}
+
+.radio:focus-within {
+  @apply outline-none ring-2 ring-slate-500;
+}
+
+.radio > * > label,
+.radio > label {
+  @apply font-sans text-sm font-normal text-zinc-700 dark:text-zinc-200;
+}
+
+input[type='number'] {
+  @apply appearance-none;
+}
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='checkbox'] {
+  -webkit-appearance: none;
+  appearance: none;
+  @apply m-0 h-5 w-5;
+  @apply bg-white dark:bg-zinc-800;
+  @apply border-2 border-zinc-300 dark:border-zinc-600;
+  @apply rounded-sm;
+  @apply grid place-content-center;
+  @apply -translate-y-[0.075em] transform;
+}
+
+input[type='checkbox']::before {
+  content: '';
+  @apply h-3 w-3;
+  @apply scale-0 transform transition-transform duration-100 ease-in-out;
+  @apply origin-bottom-left;
+  @apply bg-zinc-800 dark:bg-zinc-200;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+input[type='checkbox']:checked::before {
+  @apply scale-100 transform;
+}
+
+input[type='checkbox']:focus {
+  @apply outline-none ring-2 ring-zinc-500 dark:ring-zinc-400;
+  outline-offset: max(2px, 0.15em);
+}
+
+input[type='checkbox']:hover {
+  @apply border-zinc-400 dark:border-zinc-500;
+}
+
+.button {
+  @apply bg-zinc-100 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-200;
+  @apply rounded-lg p-2 shadow-sm hover:shadow focus-visible:shadow-md;
+  @apply outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 dark:focus-visible:ring-zinc-200;
+  @apply disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.secondary-button {
+  @apply bg-zinc-50 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100;
+  @apply rounded-lg shadow transition-shadow hover:shadow-md;
+  @apply outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 dark:focus-visible:ring-zinc-200;
+  @apply p-1.5 outline-none;
+}
+
+.icon-button {
+  @apply p-1;
+  @apply rounded-sm outline-none hover:shadow focus-visible:ring-1 focus-visible:ring-zinc-700 dark:focus-visible:ring-zinc-200;
+  @apply text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100;
+}
+
+.vertical-border {
+  @apply h-8 w-1 bg-slate-300 dark:bg-slate-700;
+}
