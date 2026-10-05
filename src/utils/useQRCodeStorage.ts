@@ -54,7 +54,7 @@ export function loadQRConfig(): QRCodeConfig | null {
   try {
     const parsed: unknown = JSON.parse(stored)
     if (!isValidQRCodeConfig(parsed)) return null
-    return parsed
+    return parsed as QRCodeConfig
   } catch {
     return null
   }

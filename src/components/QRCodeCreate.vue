@@ -420,7 +420,7 @@ watch(
 
     if (
       import.meta.env.VITE_DISABLE_LOCAL_STORAGE !== 'true' &&
-      CUSTOM_LOADED_PRESET_KEYS.includes(newKey) &&
+      (CUSTOM_LOADED_PRESET_KEYS as readonly string[]).includes(newKey) &&
       lastCustomLoadedPreset.value
     ) {
       selectedPreset.value = lastCustomLoadedPreset.value
@@ -1131,7 +1131,7 @@ const isExportingBatchQRs = ref(false)
 const isBatchExportSuccess = ref(false)
 const currentExportedQrCodeIndex = ref<number | null>(null)
 
-const parsedCsvResult = ref<{ data: CSVParsingResult } | null>(null)
+const parsedCsvResult = ref<CSVParsingResult | null>(null)
 const previewRowIndex = ref(0)
 const previewRow = computed(() => {
   const idx = previewRowIndex.value

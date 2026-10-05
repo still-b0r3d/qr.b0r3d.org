@@ -477,7 +477,7 @@ defineExpose({
               <!-- Paste from clipboard option -->
               <button
                 class="z-40 flex w-full min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-zinc-100 px-4 py-2 outline-none transition-colors hover:bg-zinc-200 focus-visible:ring-1 focus-visible:ring-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:focus-visible:ring-zinc-200 sm:w-auto sm:flex-1"
-                @click="pasteFromClipboard"
+                @click="pasteFromClipboard(null)"
                 type="button"
                 v-if="IS_PASTE_IMAGE_FROM_CLIPBOARD_SUPPORTED"
               >

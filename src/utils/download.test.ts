@@ -1,12 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { downloadBlob } from './download'
 
 describe('downloadBlob', () => {
-  let createObjectURLSpy: ReturnType<typeof vi.spyOn>
-  let revokeObjectURLSpy: ReturnType<typeof vi.spyOn>
+  let createObjectURLSpy: MockInstance<typeof URL.createObjectURL>
+  let revokeObjectURLSpy: MockInstance<typeof URL.revokeObjectURL>
   let clickSpy: ReturnType<typeof vi.fn>
-  let appendChildSpy: ReturnType<typeof vi.spyOn>
-  let removeChildSpy: ReturnType<typeof vi.spyOn>
+  let appendChildSpy: MockInstance<typeof document.body.appendChild>
+  let removeChildSpy: MockInstance<typeof document.body.removeChild>
   let createdAnchor: HTMLAnchorElement | null = null
 
   beforeEach(() => {
