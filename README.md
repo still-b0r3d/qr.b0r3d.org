@@ -5,7 +5,8 @@
 It makes **static QR codes only**. Whatever you type is encoded straight into
 the pattern, so there is no redirect link, no account and nothing that can ever
 expire. The app runs entirely in your browser: codes are drawn and exported on
-your device, and the page loads nothing from any other site.
+your device, and the app loads nothing from any other site. Like the rest of
+b0r3d.org, the site counts visits; that never includes what you type.
 
 - Text, URLs, email, phone, SMS, Wi-Fi, vCard, location, calendar events and
   EPC (SEPA) payments

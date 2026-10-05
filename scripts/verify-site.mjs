@@ -3,7 +3,7 @@
 // checks the defaults, manifest, service worker, every preset, a self-hosted
 // font, all export formats, the language switch, file and camera scanning
 // (fake camera) and an offline reload. Fails if any request goes to another
-// origin.
+// origin, except b0r3d.org's site-wide visitor stats beacon.
 //
 //   pnpm build && pnpm verify:site            # serves dist/ itself
 //   pnpm verify:site https://qr.b0r3d.org     # check the live site
@@ -211,13 +211,19 @@ async function run(base) {
     await browser.close()
   }
 
-  const foreign = requests.filter((u) => !u.startsWith(origin) && !/^(data|blob):/.test(u))
+  // b0r3d.org's visitor stats are switched on for the whole domain, so the live
+  // site gets this beacon injected. It isn't part of the app and is kept on
+  // purpose; it's listed but doesn't fail the check.
+  const siteStats = (u) => u.startsWith('https://static.cloudflareinsights.com/')
+  const outside = requests.filter((u) => !u.startsWith(origin) && !/^(data|blob):/.test(u))
+  const foreign = outside.filter((u) => !siteStats(u))
   check(
     'no request left the site',
     foreign.length === 0,
     `${requests.length} requests, ${foreign.length} to other origins`
   )
   for (const u of foreign) console.log(`      FOREIGN ${u}`)
+  for (const u of outside.filter(siteStats)) console.log(`      site-wide visitor stats (not the app) ${u}`)
   if (pageErrors.length) console.log('page errors:', pageErrors)
   const passed = results.filter(Boolean).length
   console.log(`\n${passed}/${results.length} checks passed`)
