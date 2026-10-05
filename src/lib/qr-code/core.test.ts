@@ -8,6 +8,7 @@ function makeCurrent(overrides: Partial<ResolvedQRCodeConfig> = {}): ResolvedQRC
     size: DEFAULT_CONFIG.size,
     margin: DEFAULT_CONFIG.margin,
     errorCorrectionLevel: DEFAULT_CONFIG.errorCorrectionLevel,
+    version: DEFAULT_CONFIG.version,
     dots: { ...DEFAULT_CONFIG.dots },
     cornerSquares: { ...DEFAULT_CONFIG.cornerSquares },
     cornerDots: { ...DEFAULT_CONFIG.cornerDots },
@@ -48,5 +49,11 @@ describe('mergeConfig', () => {
 
     expect(merged.image?.href).toBe('https://new.example.com/logo.png')
     expect(merged.image?.sizeRatio).toBe(0.5)
+  })
+
+  it('keeps the current version unless the partial sets one', () => {
+    const current = makeCurrent({ version: 7 })
+    expect(mergeConfig(current, { data: 'new data' }).version).toBe(7)
+    expect(mergeConfig(current, { version: 12 }).version).toBe(12)
   })
 })

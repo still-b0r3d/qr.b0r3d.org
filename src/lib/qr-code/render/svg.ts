@@ -28,7 +28,7 @@ export function renderQrFragment(config: ResolvedQRCodeConfig): {
     Boolean(config.image),
     config.errorCorrectionLevel
   )
-  const { matrix, count } = buildMatrix(config.data, effectiveEcLevel)
+  const { matrix, count } = buildMatrix(config.data, effectiveEcLevel, config.version)
   const totalModules = count + 2 * config.margin
   const moduleSize = config.size / totalModules
   const offset = config.margin * moduleSize

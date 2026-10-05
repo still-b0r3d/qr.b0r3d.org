@@ -72,6 +72,7 @@ export function fromLegacyOptions(legacy: Options): QRCodeConfig {
     size,
     margin: legacy.margin,
     errorCorrectionLevel: ec,
+    version: legacy.qrOptions?.typeNumber,
     dots: legacy.dotsOptions
       ? {
           shape: clampDotShape(legacy.dotsOptions.type),

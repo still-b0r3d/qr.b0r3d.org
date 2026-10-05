@@ -88,4 +88,11 @@ describe('fromLegacyOptions', () => {
       })
     }
   })
+
+  it('maps qrOptions.typeNumber to version', () => {
+    expect(fromLegacyOptions({ data: 'x', qrOptions: { typeNumber: 12 } }).version).toBe(12)
+    expect(
+      fromLegacyOptions({ data: 'x', qrOptions: { errorCorrectionLevel: 'Q' } }).version
+    ).toBeUndefined()
+  })
 })

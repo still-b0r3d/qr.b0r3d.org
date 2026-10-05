@@ -45,7 +45,8 @@ export const SIMPLE_MODE_FIELD_GROUPS: SimpleFieldGroup[] = [
       { key: 'dotsType', labelKey: 'Dots type' },
       { key: 'cornersSquareType', labelKey: 'Corners Square type' },
       { key: 'cornersDotType', labelKey: 'Corners Dot type' },
-      { key: 'errorCorrectionLevel', labelKey: 'Error correction level' }
+      { key: 'errorCorrectionLevel', labelKey: 'Error correction level' },
+      { key: 'qrVersion', labelKey: 'Size (QR version)' }
     ]
   },
   {

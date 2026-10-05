@@ -60,6 +60,12 @@ export interface QRCodeConfig {
   size?: number
   margin?: number
   errorCorrectionLevel?: ECLevel
+  /**
+   * QR version (1-40) to use; the matrix is 17 + 4 * version modules wide.
+   * When the data doesn't fit, the smallest larger version is used.
+   * 0 or absent = the smallest version that fits.
+   */
+  version?: number
   dots?: DotsConfig
   cornerSquares?: CornerSquaresConfig
   cornerDots?: CornerDotsConfig
@@ -90,6 +96,7 @@ export interface ResolvedQRCodeConfig {
   size: number
   margin: number
   errorCorrectionLevel: ECLevel
+  version: number
   dots: Required<DotsConfig>
   cornerSquares: Required<CornerSquaresConfig>
   cornerDots: Required<CornerDotsConfig>
@@ -109,6 +116,7 @@ export const DEFAULT_CONFIG: Omit<ResolvedQRCodeConfig, 'data'> = {
   // logo'd/stylised 200px preset with long data) fail to scan.
   margin: 4,
   errorCorrectionLevel: 'Q',
+  version: 0,
   dots: { shape: 'square', color: '#000000' },
   cornerSquares: { shape: 'square', color: '#000000' },
   cornerDots: { shape: 'square', color: '#000000' },

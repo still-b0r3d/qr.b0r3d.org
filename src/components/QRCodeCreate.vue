@@ -82,11 +82,14 @@ import JSZip from 'jszip'
 import TextExportModal from '@/components/TextExportModal.vue'
 import {
   buildMatrix,
+  MAX_QR_VERSION,
+  resolveEffectiveErrorCorrectionLevel,
   type CornerDotType,
   type CornerSquareType,
   type DotType,
   type ErrorCorrectionLevel,
-  type Options as StyledQRCodeProps
+  type Options as StyledQRCodeProps,
+  type TypeNumber
 } from '@/lib/qr-code'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import 'vue-i18n'
@@ -333,7 +336,8 @@ const isImageSizeOutOfRange = computed(() => {
   return typeof v === 'number' && (v < 0 || v > MAX_SAFE_IMAGE_SIZE)
 })
 const qrOptions = computed(() => ({
-  errorCorrectionLevel: errorCorrectionLevel.value
+  errorCorrectionLevel: errorCorrectionLevel.value,
+  typeNumber: qrVersion.value as TypeNumber
 }))
 
 const qrCodeProps = computed<StyledQRCodeProps>(() => ({
@@ -404,7 +408,10 @@ const allPresetOptions = computed(() => {
   return options.map((preset) => ({ value: preset.name, label: t(preset.name) }))
 })
 const selectedPreset = ref<
-  Preset & { key?: string; qrOptions?: { errorCorrectionLevel: ErrorCorrectionLevel } }
+  Preset & {
+    key?: string
+    qrOptions?: { errorCorrectionLevel: ErrorCorrectionLevel; typeNumber?: number }
+  }
 >(defaultPreset)
 
 const selectedPresetKey = ref<string>(
@@ -466,6 +473,28 @@ const isErrorCorrectionBoostedForLogo = computed(
   () =>
     Boolean(image.value) &&
     (errorCorrectionLevel.value === 'L' || errorCorrectionLevel.value === 'M')
+)
+//#endregion
+
+//#region /* Size (QR version) */
+// 0 = the smallest version that fits. A fixed version keeps every code in a
+// batch the same size; data that doesn't fit grows to the next version up.
+const qrVersion = ref<number>(0)
+const QR_VERSIONS = Array.from({ length: MAX_QR_VERSION }, (_, i) => i + 1)
+const qrVersionInUse = computed<number | null>(() => {
+  if (!qrVersion.value || !previewData.value) return null
+  try {
+    const ec = resolveEffectiveErrorCorrectionLevel(
+      Boolean(image.value),
+      errorCorrectionLevel.value
+    )
+    return buildMatrix(previewData.value, ec, qrVersion.value).version
+  } catch {
+    return null
+  }
+})
+const isQrVersionTooSmall = computed(
+  () => qrVersionInUse.value !== null && qrVersionInUse.value > qrVersion.value
 )
 //#endregion
 
@@ -606,6 +635,11 @@ function applySelectedPresetToState() {
   errorCorrectionLevel.value = preset.qrOptions?.errorCorrectionLevel
     ? preset.qrOptions.errorCorrectionLevel
     : 'Q'
+  const presetVersion = Number(preset.qrOptions?.typeNumber)
+  qrVersion.value =
+    Number.isInteger(presetVersion) && presetVersion >= 0 && presetVersion <= MAX_QR_VERSION
+      ? presetVersion
+      : 0
   const frame = (preset as Preset & { frame?: QRCodeFrameConfig }).frame
   if (frame) {
     applyFrameFromPreset(frame)
@@ -1099,7 +1133,7 @@ const isMobileExportDrawerOpen = ref(false)
 const asciiMatrix = computed<boolean[][]>(() => {
   if (!data.value) return []
   try {
-    return buildMatrix(data.value, errorCorrectionLevel.value).matrix
+    return buildMatrix(data.value, errorCorrectionLevel.value, qrVersion.value).matrix
   } catch (err) {
     console.error('Failed to build matrix for ASCII export:', err)
     return []
@@ -2782,6 +2816,42 @@ const updateDataFromModal = (newData: string) => {
                   </p>
                 </fieldset>
               </div>
+              <div
+                id="qr-version-settings"
+                class="field-reveal mb-4 w-full sm:w-1/2 lg:w-1/3"
+                v-show="isFieldVisible('qrVersion')"
+              >
+                <label for="qr-version">{{ t('Size (QR version)') }}</label>
+                <select
+                  id="qr-version"
+                  v-model.number="qrVersion"
+                  class="text-input"
+                  aria-describedby="qr-version-hint"
+                >
+                  <option :value="0">{{ t('Auto (smallest that fits)') }}</option>
+                  <option v-for="v in QR_VERSIONS" :key="v" :value="v">
+                    {{ v }} ({{ 17 + 4 * v }} × {{ 17 + 4 * v }})
+                  </option>
+                </select>
+                <p
+                  id="qr-version-hint"
+                  class="ms-1 mt-2 text-xs font-normal text-zinc-500 dark:text-zinc-400"
+                >
+                  {{ t('A fixed size keeps every code in a batch export the same size.') }}
+                </p>
+                <p
+                  v-if="isQrVersionTooSmall"
+                  role="status"
+                  class="ms-1 mt-1 text-xs font-normal text-amber-700 dark:text-amber-300"
+                >
+                  {{
+                    t('Too much data for version {requested}, so version {used} is used.', {
+                      requested: qrVersion,
+                      used: qrVersionInUse
+                    })
+                  }}
+                </p>
+              </div>
             </section>
           </AccordionContent>
         </AccordionItem>
@@ -2811,6 +2881,7 @@ const updateDataFromModal = (newData: string) => {
     :is-batch="exportMode === ExportMode.Batch"
     :batch-rows="asciiBatchRows"
     :ec-level="errorCorrectionLevel"
+    :version="qrVersion"
     @close="isTextExportModalOpen = false"
   />
 

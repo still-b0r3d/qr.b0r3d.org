@@ -32,6 +32,7 @@ describe('simple mode field registry', () => {
         'cornersSquareType',
         'cornersDotType',
         'errorCorrectionLevel',
+        'qrVersion',
         'framePreset',
         'frameText',
         'framePosition',

@@ -9,6 +9,7 @@ function baseConfig(overrides: Partial<ResolvedQRCodeConfig> = {}): ResolvedQRCo
     size: 200,
     margin: 0,
     errorCorrectionLevel: 'Q',
+    version: 0,
     dots: { ...DEFAULT_CONFIG.dots },
     cornerSquares: { ...DEFAULT_CONFIG.cornerSquares },
     cornerDots: { ...DEFAULT_CONFIG.cornerDots },
@@ -105,5 +106,12 @@ describe('renderQrFragment + wrapAsSvg', () => {
     const zero = renderQrFragment(baseConfig({ margin: 0 }))
     const four = renderQrFragment(baseConfig({ margin: 4 }))
     expect(zero.fragment).not.toBe(four.fragment)
+  })
+
+  it('uses the configured version for the matrix size', () => {
+    expect(renderQrFragment(baseConfig()).matrixCount).toBe(
+      buildMatrix('https://example.com', 'Q').count
+    )
+    expect(renderQrFragment(baseConfig({ version: 10 })).matrixCount).toBe(57)
   })
 })

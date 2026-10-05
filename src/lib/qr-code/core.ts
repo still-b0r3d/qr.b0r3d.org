@@ -17,6 +17,7 @@ function resolveConfig(config: QRCodeConfig): ResolvedQRCodeConfig {
     size: config.size ?? DEFAULT_CONFIG.size,
     margin: config.margin ?? DEFAULT_CONFIG.margin,
     errorCorrectionLevel: config.errorCorrectionLevel ?? DEFAULT_CONFIG.errorCorrectionLevel,
+    version: config.version ?? DEFAULT_CONFIG.version,
     dots: {
       shape: config.dots?.shape ?? DEFAULT_CONFIG.dots.shape,
       color: config.dots?.color ?? DEFAULT_CONFIG.dots.color
@@ -117,6 +118,7 @@ export function mergeConfig(
     size: partial.size ?? current.size,
     margin: partial.margin ?? current.margin,
     errorCorrectionLevel: partial.errorCorrectionLevel ?? current.errorCorrectionLevel,
+    version: partial.version ?? current.version,
     dots: partial.dots ? { ...current.dots, ...partial.dots } : current.dots,
     cornerSquares: partial.cornerSquares
       ? { ...current.cornerSquares, ...partial.cornerSquares }

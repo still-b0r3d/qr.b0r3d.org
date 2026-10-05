@@ -8,6 +8,7 @@ function baseConfig(textPosition: TextPosition): ResolvedQRCodeConfig {
     size: 200,
     margin: 0,
     errorCorrectionLevel: 'Q',
+    version: 0,
     dots: { ...DEFAULT_CONFIG.dots },
     cornerSquares: { ...DEFAULT_CONFIG.cornerSquares },
     cornerDots: { ...DEFAULT_CONFIG.cornerDots },

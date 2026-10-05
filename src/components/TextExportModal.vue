@@ -27,8 +27,10 @@ const props = withDefaults(
     isBatch?: boolean
     batchRows?: BatchRow[]
     ecLevel?: 'L' | 'M' | 'Q' | 'H'
+    /** QR version (1-40); 0 = smallest that fits. */
+    version?: number
   }>(),
-  { isBatch: false, batchRows: () => [], ecLevel: 'Q' }
+  { isBatch: false, batchRows: () => [], ecLevel: 'Q', version: 0 }
 )
 
 defineEmits<{ (e: 'close'): void }>()
@@ -73,7 +75,7 @@ function preview(format: AsciiFormat): string {
 function batchPreview(format: AsciiFormat): string {
   if (props.isBatch && props.batchRows && props.batchRows.length > 0) {
     try {
-      const m = buildMatrix(props.batchRows[0].data, props.ecLevel).matrix
+      const m = buildMatrix(props.batchRows[0].data, props.ecLevel, props.version).matrix
       return getAsciiText({ matrix: m, format })
     } catch {
       return ''
@@ -98,7 +100,7 @@ async function downloadBatchZip(format: AsciiFormat, wrap: 'md' | 'txt') {
       const row = props.batchRows[i]
       let matrix: boolean[][]
       try {
-        matrix = buildMatrix(row.data, props.ecLevel).matrix
+        matrix = buildMatrix(row.data, props.ecLevel, props.version).matrix
       } catch (err) {
         console.error(`Skipping row ${i}: failed to build matrix`, err)
         continue
