@@ -17,9 +17,6 @@
       "color": "#000000",
       "type": "square"
     },
-    "imageOptions": {
-      "margin": 0
-    },
     "qrOptions": {
       "errorCorrectionLevel": "Q"
     }

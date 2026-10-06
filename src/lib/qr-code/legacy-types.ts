@@ -85,7 +85,13 @@ export type Options = {
     hideBackgroundDots?: boolean
     imageSize?: number
     crossOrigin?: string
+    /**
+     * qr-code-styling's inset in px. Ignored: configs saved before `padding`
+     * still load, and get the default space around the logo instead.
+     */
     margin?: number
+    /** Blank space around the logo, in modules (not in qr-code-styling). */
+    padding?: number
   }
   dotsOptions?: {
     type?: DotType

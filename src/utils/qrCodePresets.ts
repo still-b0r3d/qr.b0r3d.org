@@ -20,12 +20,16 @@ export type Preset = Omit<
 > &
   PresetAttributes
 
+// Blank space between a logo and the dots, in modules. Configs saved before
+// this setting existed get it too.
+export const DEFAULT_LOGO_PADDING = 1
+
 const defaultPresetOptions = {
   backgroundOptions: {
     color: 'transparent'
   },
   imageOptions: {
-    margin: 0
+    padding: DEFAULT_LOGO_PADDING
   },
   width: 200,
   height: 200,
@@ -78,7 +82,6 @@ export const b0r3dCupPreset = {
   dotsOptions: { color: '#131313', type: 'rounded' },
   cornersSquareOptions: { color: '#131313', type: 'extra-rounded' },
   cornersDotOptions: { color: '#c000c0', type: 'dot' },
-  imageOptions: { margin: 4 },
   style: { borderRadius: '16px', background: '#ffffff' },
   qrOptions: { errorCorrectionLevel: 'H' }
 } as Preset
@@ -93,7 +96,6 @@ export const rukusPreset = {
   dotsOptions: { color: '#2b2b2b', type: 'rounded' },
   cornersSquareOptions: { color: '#2b2b2b', type: 'extra-rounded' },
   cornersDotOptions: { color: '#c0396b', type: 'dot' },
-  imageOptions: { margin: 4 },
   style: { borderRadius: '16px', background: '#ffffff' },
   qrOptions: { errorCorrectionLevel: 'H' }
 } as Preset

@@ -26,7 +26,12 @@ export interface BackgroundConfig {
 export interface ImageConfig {
   href: string
   sizeRatio?: number
-  margin?: number
+  /**
+   * Blank space between the logo and the dots on each side, in modules.
+   * Taken from inside the cleared centre square, so the logo shrinks and the
+   * code loses no more modules than it would without it. 0 or absent = none.
+   */
+  padding?: number
   hideBackgroundDots?: boolean
   crossOrigin?: 'anonymous' | 'use-credentials'
 }

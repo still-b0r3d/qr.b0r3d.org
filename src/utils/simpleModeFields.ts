@@ -40,7 +40,7 @@ export const SIMPLE_MODE_FIELD_GROUPS: SimpleFieldGroup[] = [
       { key: 'height', labelKey: 'Height (px)' },
       { key: 'borderRadius', labelKey: 'Border radius (px)' },
       { key: 'margin', labelKey: 'Margin (modules)' },
-      { key: 'imageMargin', labelKey: 'Image margin (px)' },
+      { key: 'imageMargin', labelKey: 'Logo space (modules)' },
       { key: 'imageSize', labelKey: 'Image size (ratio)' },
       { key: 'dotsType', labelKey: 'Dots type' },
       { key: 'cornersSquareType', labelKey: 'Corners Square type' },

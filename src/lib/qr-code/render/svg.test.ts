@@ -49,6 +49,17 @@ describe('renderQrFragment + wrapAsSvg', () => {
     expect(fragment).toContain('href="https://example.com/logo.png"')
   })
 
+  it('leaves the space around the logo blank, in modules', () => {
+    // 'https://a.co' at Q is 25 modules: 8 px each at size 200, and a
+    // 7-module (56 px) square cleared from x = 72.
+    const logo = (padding: number) =>
+      renderQrFragment(
+        baseConfig({ data: 'https://a.co', image: { href: 'logo.png', sizeRatio: 0.4, padding } })
+      ).fragment.match(/<image\b[^>]*>/)?.[0]
+    expect(logo(0)).toContain('x="72" y="72" width="56" height="56"')
+    expect(logo(1)).toContain('x="80" y="80" width="40" height="40"')
+  })
+
   it('respects background.color when set to a concrete value', () => {
     const { fragment } = renderQrFragment(baseConfig({ background: { color: '#fffaee' } }))
     expect(fragment).toContain('class="qr-bg"')

@@ -67,6 +67,7 @@ import {
 } from '@/utils/framePresets'
 import {
   allQrCodePresets,
+  DEFAULT_LOGO_PADDING,
   defaultPreset,
   isValidQRCodeConfig,
   type Preset
@@ -101,6 +102,7 @@ import TextExportModal from '@/components/TextExportModal.vue'
 import {
   buildMatrix,
   buildSvgExportString,
+  computeLogoFootprint,
   MAX_QR_VERSION,
   resolveEffectiveErrorCorrectionLevel,
   type CornerDotType,
@@ -321,7 +323,7 @@ const width = ref()
 const height = ref()
 const margin = ref()
 const showMarginHint = ref(false)
-const imageMargin = ref()
+const imagePadding = ref<number | undefined>()
 const imageSize = ref<number | undefined>()
 
 watch(
@@ -383,7 +385,7 @@ const style = computed(() => ({
   background: styleBackground.value
 }))
 const imageOptions = computed(() => ({
-  margin: imageMargin.value,
+  padding: imagePadding.value,
   imageSize: imageSize.value
 }))
 // Capped below 1: past ~0.5 the render pipeline's own scannability safety
@@ -566,6 +568,29 @@ const isQrVersionTooSmall = computed(
 )
 //#endregion
 
+//#region /* Logo space */
+// How the square cleared for the logo is shared between the logo and the
+// blank space around it, for the hint under "Logo space".
+const logoFootprint = computed(() => {
+  const info = encodedInfo.value
+  if (!logo.value.src || !info) return null
+  const footprint = computeLogoFootprint(
+    info.count,
+    info.ecLevel,
+    imageSize.value,
+    imagePadding.value
+  )
+  const round = (n: number) => Math.round(n * 100) / 100
+  return {
+    clear: footprint.clearModules,
+    logo: round(footprint.logoModules),
+    space: round(footprint.padding),
+    // More space was asked for than the square has room for.
+    isCapped: Number(imagePadding.value) > footprint.padding
+  }
+})
+//#endregion
+
 //#region /* Frame settings */ Start empty, default is set intelligently */
 const defaultFrameText = computed(() => t('Scan for more info'))
 const frameText = ref<string>('')
@@ -689,7 +714,7 @@ function applySelectedPresetToState() {
   width.value = preset.width
   height.value = preset.height
   margin.value = preset.margin
-  imageMargin.value = preset.imageOptions.margin
+  imagePadding.value = preset.imageOptions.padding ?? DEFAULT_LOGO_PADDING
   imageSize.value = preset.imageOptions.imageSize
   dotsOptionsColor.value = preset.dotsOptions.color
   dotsOptionsType.value = preset.dotsOptions.type
@@ -2888,16 +2913,36 @@ const updateDataFromModal = (newData: string) => {
                   </Popover>
                 </div>
                 <div class="w-full sm:w-1/3" v-show="isFieldVisible('imageMargin')">
-                  <label for="image-margin">
-                    {{ t('Image margin (px)') }}
+                  <label for="image-padding">
+                    {{ t('Logo space (modules)') }}
                   </label>
                   <input
                     class="text-input"
-                    id="image-margin"
+                    id="image-padding"
                     type="number"
+                    min="0"
+                    step="0.5"
                     placeholder="0"
-                    v-model="imageMargin"
+                    v-model.number="imagePadding"
+                    aria-describedby="image-padding-hint"
                   />
+                  <p
+                    v-if="logoFootprint"
+                    id="image-padding-hint"
+                    class="ms-1 mt-1 text-xs font-normal text-zinc-500 dark:text-zinc-400"
+                  >
+                    {{
+                      logoFootprint.isCapped
+                        ? t(
+                            'Only room for {space}: the logo keeps at least 1 of the {clear} × {clear} cleared modules.',
+                            logoFootprint
+                          )
+                        : t(
+                            'Logo {logo} × {logo} of the {clear} × {clear} cleared modules. Space comes out of the logo so the code still scans; a larger Size (QR version) fits both.',
+                            logoFootprint
+                          )
+                    }}
+                  </p>
                 </div>
                 <div class="w-full sm:w-1/3" v-show="isFieldVisible('imageSize')">
                   <label for="image-size">

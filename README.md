@@ -165,6 +165,16 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
   Permissions-Policy (camera only) and COOP. The bot-detection snippet the
   host adds to every b0r3d.org page is blocked by it on purpose; `verify:site`
   lists those blocks without failing.
+- **Space around logos** (2026-10-06). A "Logo space (modules)" setting, 1
+  module by default, leaves blank space between a centre logo and the dots.
+  It replaces "Image margin (px)", which defaulted to none and was measured in
+  pixels of the preview rather than modules of the code. The space comes out
+  of the square cleared for the logo instead of being added around it: in
+  test decodes, clearing one more module on each side made every version 1
+  and 2 code at level Q unreadable. A note under the field gives the logo's
+  size in modules; a larger Size (QR version) makes room for a bigger logo
+  with the same space. Configs saved before load as before, with the default
+  space.
 
 Ideas under consideration are in [TODO.md](TODO.md).
 

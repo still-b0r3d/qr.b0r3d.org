@@ -72,6 +72,16 @@ describe('fromLegacyOptions', () => {
     expect(out.image?.sizeRatio).toBe(0.7)
   })
 
+  it('forwards imageOptions.padding and ignores the px margin of older configs', () => {
+    const out = fromLegacyOptions({
+      data: 'x',
+      image: 'https://example.com/logo.png',
+      imageOptions: { padding: 1.5, margin: 8 }
+    })
+    expect(out.image?.padding).toBe(1.5)
+    expect(out.image).not.toHaveProperty('margin')
+  })
+
   it('forwards hideBackgroundDots default of true', () => {
     const out = fromLegacyOptions({ data: 'x', image: 'https://example.com/logo.png' })
     expect(out.image?.hideBackgroundDots).toBe(true)

@@ -4,6 +4,7 @@ export interface ImagePlacement {
   x: number
   y: number
   size: number
+  /** Blank space inside `size` on each side of the logo, in px. */
   margin: number
   hidesCell: (r: number, c: number) => boolean
 }
@@ -48,22 +49,38 @@ export function resolveEffectiveErrorCorrectionLevel(hasImage: boolean, level: E
   return level === 'L' || level === 'M' ? 'Q' : level
 }
 
+export interface LogoFootprint {
+  /** Width of the cleared centre square, in modules. */
+  clearModules: number
+  /** Blank space between the logo and the dots on each side, in modules. */
+  padding: number
+  /** Width of the logo's box inside the cleared square, in modules. */
+  logoModules: number
+}
+
 /**
- * Compute where the centre logo lands inside the QR area plus the matrix-cell
- * mask used to skip body dots underneath. The image is sized to fit within
- * the QR's error-correction budget, mirroring qr-code-styling's formula:
+ * Size the cleared centre square to fit within the QR's error-correction
+ * budget, mirroring qr-code-styling's formula:
  *
  *   maxHiddenDots = floor(imageSize * EC_FACTOR[level] * count^2)
  *   maxHiddenAxisDots = floor(sqrt(maxHiddenDots))
  *
  * ...then clamped to SAFE_MAX_AXIS_FRACTION of the matrix width (see above).
+ *
+ * The padding (blank space around the logo) comes out of that square, never on
+ * top of it: the square is what the code can afford to lose, and growing it by
+ * one module on each side made small codes unreadable (a version 1 or 2 code
+ * at level Q failed every test decode). It is capped so the logo keeps at
+ * least one module.
  */
-export function computeImagePlacement(input: PlacementInput): ImagePlacement {
-  const { image, count, moduleSize, offset, totalSize, errorCorrectionLevel } = input
-  const sizeRatio = clamp01(image.sizeRatio ?? 0.4)
-  const marginPx = Math.max(0, image.margin ?? 0)
-
-  const maxHiddenDots = Math.floor(sizeRatio * EC_FACTOR[errorCorrectionLevel] * count * count)
+export function computeLogoFootprint(
+  count: number,
+  errorCorrectionLevel: ECLevel,
+  sizeRatio: number | undefined,
+  padding: number | undefined
+): LogoFootprint {
+  const ratio = clamp01(sizeRatio ?? 0.4)
+  const maxHiddenDots = Math.floor(ratio * EC_FACTOR[errorCorrectionLevel] * count * count)
   let maxAxisDots = Math.floor(Math.sqrt(Math.max(0, maxHiddenDots)))
   // Keep the mask odd so it stays symmetric around the matrix centre — matches
   // qr-code-styling's centring and avoids off-by-one drift at small sizes.
@@ -75,6 +92,30 @@ export function computeImagePlacement(input: PlacementInput): ImagePlacement {
     maxAxisDots =
       safeMaxAxisDots % 2 === 0 && safeMaxAxisDots > 1 ? safeMaxAxisDots - 1 : safeMaxAxisDots
   }
+
+  const requested = Number(padding)
+  const space = Number.isFinite(requested) ? Math.max(0, requested) : 0
+  const clampedSpace = Math.min(space, (maxAxisDots - 1) / 2)
+  return {
+    clearModules: maxAxisDots,
+    padding: clampedSpace,
+    logoModules: maxAxisDots - 2 * clampedSpace
+  }
+}
+
+/**
+ * Compute where the centre logo lands inside the QR area plus the matrix-cell
+ * mask used to skip body dots underneath (see computeLogoFootprint).
+ */
+export function computeImagePlacement(input: PlacementInput): ImagePlacement {
+  const { image, count, moduleSize, offset, totalSize, errorCorrectionLevel } = input
+  const { clearModules: maxAxisDots, padding } = computeLogoFootprint(
+    count,
+    errorCorrectionLevel,
+    image.sizeRatio,
+    image.padding
+  )
+  const marginPx = padding * moduleSize
 
   const imageSizeInPx = maxAxisDots * moduleSize
   const x = offset + (count * moduleSize - imageSizeInPx) / 2
