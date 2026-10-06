@@ -60,7 +60,10 @@ function contentSecurityPolicy() {
       handler(html) {
         const inline = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
         const hashes = inline.map(
-          ([, code]) => `'sha256-${createHash('sha256').update(code).digest('base64')}'`
+          // Browsers turn CRLF into LF before hashing, so a Windows checkout
+          // (CRLF) has to be hashed the same way.
+          ([, code]) =>
+            `'sha256-${createHash('sha256').update(code.replace(/\r\n?/g, '\n')).digest('base64')}'`
         )
         const sources = { ...CSP_SOURCES, 'script-src': [...CSP_SOURCES['script-src'], ...hashes] }
         const policy = Object.entries(sources)
