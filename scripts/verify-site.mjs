@@ -4,13 +4,16 @@
 // font, all export formats, English-only text, file and camera scanning
 // (fake camera), another barcode type (made, downloaded and scanned back)
 // and an offline reload. Fails if any request goes to another
-// origin, except b0r3d.org's site-wide visitor stats beacon.
+// origin, except b0r3d.org's site-wide visitor stats beacon, or if the
+// Content-Security-Policy blocks anything except Cloudflare's injected bot
+// detection script.
 //
 //   pnpm build && pnpm verify:site            # serves dist/ itself
 //   pnpm verify:site https://qr.b0r3d.org     # check the live site
 //
 // The default-value checks expect a production build (.env.production).
 // Needs Playwright's Chromium (`pnpm exec playwright install chromium`).
+import { createHash } from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import process from 'process'
@@ -20,6 +23,15 @@ import { decodeBarcode, decodePng, outputDir, ROOT, withSite } from './lib/verif
 const DEFAULT_DATA = 'https://b0r3d.org'
 const PKG_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version
 const PRESETS = ['Rounded', 'Dots', 'b0r3d Cup', 'Rukus', 'Plain']
+
+// b0r3d.org has Bot Fight Mode on, so Cloudflare adds its JavaScript Detections
+// snippet (an inline script, plus one inside a hidden iframe) to every page it
+// serves. Its contents change per request, so the CSP can't allow it by hash,
+// and Cloudflare only adds a nonce when the policy comes in a response header.
+// Blocking it is accepted (owner's call, 2026-10-05): nothing on this plan
+// acts on its result. Those violations are listed but don't fail the check;
+// anything else, including the app's own inline script, still does.
+const CF_BOT_DETECTION = /__CF\$cv\$params|\/cdn-cgi\/challenge-platform\//
 
 async function run(base) {
   const out = outputDir('verify-site')
@@ -43,10 +55,17 @@ async function run(base) {
   context.on('request', (r) => requests.push(r.url()))
   // Anything the Content-Security-Policy blocks, from the page or its workers.
   const cspViolations = []
+  const ownInlineHashes = new Set()
+  let cloudflareInjected = false
   await context.addInitScript(() => {
-    document.addEventListener('securitypolicyviolation', (e) =>
-      console.error(`CSP violation: ${e.violatedDirective} blocked ${e.blockedURI}`)
-    )
+    document.addEventListener('securitypolicyviolation', (e) => {
+      const code = e.target instanceof HTMLScriptElement ? e.target.textContent || '' : ''
+      const cloudflare = /__CF\$cv\$params|\/cdn-cgi\/challenge-platform\//.test(code)
+      console.error(
+        `CSP violation: ${e.violatedDirective} blocked ${e.blockedURI}` +
+          (cloudflare ? ' [Cloudflare bot detection]' : '')
+      )
+    })
   })
   context.on('console', (m) => {
     if (/CSP violation|Content Security Policy|Refused to/i.test(m.text())) {
@@ -70,6 +89,17 @@ async function run(base) {
   try {
     // Page and defaults
     const resp = await page.goto(base)
+    // The app's own inline scripts (by hash), and whether Cloudflare injected its
+    // bot detection, from the HTML as served.
+    for (const [, code] of (await resp.text()).matchAll(
+      /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g
+    )) {
+      if (CF_BOT_DETECTION.test(code)) cloudflareInjected = true
+      else
+        ownInlineHashes.add(
+          createHash('sha256').update(code.replace(/\r\n?/g, '\n')).digest('base64')
+        )
+    }
     const title = await page.title()
     check(
       'page loads',
@@ -285,11 +315,24 @@ async function run(base) {
     await browser.close()
   }
 
+  // A blocked inline script is Cloudflare's if the listener saw its code, or,
+  // for the copy in Cloudflare's iframe where the listener doesn't run, if its
+  // hash isn't one of the app's own and Cloudflare injected its snippet.
+  const fromCloudflare = (msg) => {
+    if (msg.includes('[Cloudflare bot detection]')) return true
+    const hash = /a hash \('sha256-([^']+)'\)/.exec(msg)?.[1]
+    return Boolean(hash && cloudflareInjected && !ownInlineHashes.has(hash))
+  }
+  const blocked = cspViolations.filter((m) => !fromCloudflare(m))
   check(
     'nothing blocked by the Content-Security-Policy',
-    cspViolations.length === 0,
-    cspViolations.slice(0, 3).join(' | ')
+    blocked.length === 0,
+    blocked.slice(0, 3).join(' | ')
   )
+  const cloudflareBlocked = cspViolations.length - blocked.length
+  if (cloudflareBlocked) {
+    console.log(`      ${cloudflareBlocked} blocked from Cloudflare's bot detection (not the app)`)
+  }
 
   // b0r3d.org's visitor stats are switched on for the whole domain, so the live
   // site gets this beacon injected. It isn't part of the app and is kept on

@@ -159,7 +159,9 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
 - **Content-Security-Policy** (2026-10-05). The built page carries a policy
   that only allows scripts from this site (plus the visitor-stats beacon), so
   the browser enforces "nothing from other sites"; `public/_headers` adds a
-  Permissions-Policy (camera only) and COOP.
+  Permissions-Policy (camera only) and COOP. The bot-detection snippet the
+  host adds to every b0r3d.org page is blocked by it on purpose; `verify:site`
+  lists those blocks without failing.
 
 Ideas under consideration are in [TODO.md](TODO.md).
 
