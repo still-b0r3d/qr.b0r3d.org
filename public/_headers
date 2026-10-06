@@ -11,10 +11,13 @@
   Cross-Origin-Opener-Policy: same-origin
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
 
-# Every file under assets/ has a content hash in its name, so a changed
-# file is always a new URL and these can be cached for good.
-/assets/*
-  Cache-Control: public, max-age=31536000, immutable
+# No long cache rule for assets/ on purpose. They used to be "max-age=1 year,
+# immutable", but for a few seconds after a deploy a request for a new file can
+# reach a server that doesn't have it yet, which answers with index.html (the
+# single-page fallback). With that header the HTML got cached in place of the
+# app's script, at the edge and in browsers, for a year: a blank page until a
+# purge (2026-10-05). The default (max-age=0, must-revalidate, with an ETag)
+# heals on the next load, and the service worker still serves repeat visits.
 
 # The page, service worker and manifest must be revalidated on every load so
 # a new deploy is picked up. "/" is listed because that is the URL visitors

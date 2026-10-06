@@ -85,7 +85,10 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
 - **Build and hosting.** Production settings in `.env.production`, Node version
   in `.node-version`, response headers (caching and security) in
   `public/_headers`. The service worker no longer precaches fonts, start-up
-  images or screenshots.
+  images or screenshots. Hashed files under `assets/` keep the host's default
+  caching (revalidate every load) rather than a one-year `immutable` rule:
+  that rule once cached the page's fallback HTML in place of the app's script
+  right after a deploy, leaving a blank page (fixed in `0.33.0+b0r3d.6`).
 - **Encoding.** ASCII text is split into numeric, alphanumeric and byte
   segments, whichever is shortest, so numbers, IDs and capitals produce
   smaller codes; text with non-ASCII characters is encoded exactly as before.
@@ -188,6 +191,7 @@ and is never bumped by hand.
 | `0.33.0+b0r3d.3` | 2026-10-05 | Version and build shown in the footer                          |
 | `0.33.0+b0r3d.4` | 2026-10-05 | Footer trimmed to one line, Mini QR credit moved to the README |
 | `0.33.0+b0r3d.5` | 2026-10-05 | Other barcode types, ZXing-C++ scanning, data template fixes   |
+| `0.33.0+b0r3d.6` | 2026-10-05 | Fix a blank page after deploys (asset caching)                 |
 
 ## Development
 
