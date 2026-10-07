@@ -11,7 +11,9 @@ import {
   type BarcodeType,
   type CodeType
 } from '@/lib/barcode/formats'
-import { computed, defineAsyncComponent, ref, onMounted, onUnmounted } from 'vue'
+import type { RecentCodeDetails } from '@/utils/recentCodes'
+import { recentCodesState } from '@/utils/useRecentCodes'
+import { computed, defineAsyncComponent, nextTick, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -22,10 +24,17 @@ const { isDarkMode, isDarkModePreferenceSetBySystem, toggleDarkModePreference } 
 // barcode maker when a type other than QR is picked.
 const QRCodeScan = defineAsyncComponent(() => import('@/components/QRCodeScan.vue'))
 const BarcodeCreate = defineAsyncComponent(() => import('@/components/BarcodeCreate.vue'))
+const RecentCodesDialog = defineAsyncComponent(() => import('@/components/RecentCodesDialog.vue'))
+const RecentCodesNotice = defineAsyncComponent(() => import('@/components/RecentCodesNotice.vue'))
 
 // QR is the default; the other types are behind the "Code type" menu.
 const codeType = ref<CodeType>('qr')
-const barcodeInitialData = ref<{ type: BarcodeType; data: string } | null>(null)
+const barcodeInitialData = ref<{
+  type: BarcodeType
+  data: string
+  settings?: Record<string, unknown>
+  restoreId?: number
+} | null>(null)
 
 const capturedData = ref<string>('')
 const qrCodeScanRef = ref<InstanceType<typeof QRCodeScanComponent> | null>(null)
@@ -92,6 +101,35 @@ const useCapturedDataInCreateMode = (data: string, format?: string) => {
   codeType.value = type
   appMode.value = AppMode.Create
 }
+
+// #region Recent codes
+const isRecentCodesOpen = ref(false)
+// Loaded the first time it's opened, then kept so it can animate closed.
+const hasOpenedRecentCodes = ref(false)
+watch(isRecentCodesOpen, (open) => {
+  if (open) hasOpenedRecentCodes.value = true
+})
+const qrCodeCreateRef = ref<InstanceType<typeof QRCodeCreate> | null>(null)
+let restoreCount = 0
+
+async function openRecentCode(details: RecentCodeDetails) {
+  isRecentCodesOpen.value = false
+  appMode.value = AppMode.Create
+  if (details.kind === 'qr') {
+    codeType.value = 'qr'
+    await nextTick()
+    await qrCodeCreateRef.value?.openRecentCode(details.config)
+  } else {
+    barcodeInitialData.value = {
+      type: details.type,
+      data: details.data,
+      settings: details.settings,
+      restoreId: ++restoreCount
+    }
+    codeType.value = details.type
+  }
+}
+// #endregion
 
 const isModeToggleDisabled = computed(() => {
   return appMode.value === AppMode.Scan && !!qrCodeScanRef.value && !!qrCodeScanRef.value.isLoading
@@ -307,15 +345,18 @@ const isModeToggleDisabled = computed(() => {
           <!-- Kept mounted while another type is shown, so switching back keeps your QR code -->
           <div v-show="codeType === 'qr'">
             <QRCodeCreate
+              ref="qrCodeCreateRef"
               v-model:code-type="codeType"
               :initial-data="capturedData"
               :active="codeType === 'qr'"
+              @open-recent-codes="isRecentCodesOpen = true"
             />
           </div>
           <BarcodeCreate
             v-if="codeType !== 'qr'"
             v-model:code-type="codeType"
             :initial-data="barcodeInitialData"
+            @open-recent-codes="isRecentCodesOpen = true"
           />
         </div>
         <div v-else class="flex flex-col items-center justify-center py-8">
@@ -324,6 +365,12 @@ const isModeToggleDisabled = computed(() => {
       </div>
     </div>
     <AppFooter />
+    <RecentCodesDialog
+      v-if="hasOpenedRecentCodes"
+      v-model:open="isRecentCodesOpen"
+      @open-code="openRecentCode"
+    />
+    <RecentCodesNotice v-if="recentCodesState.showNotice" @view="isRecentCodesOpen = true" />
   </main>
 </template>
 

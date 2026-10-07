@@ -26,6 +26,9 @@ import {
   fromMillimetres,
   type PrintSettings
 } from '@/utils/printSize'
+import { newRecentBarcode } from '@/utils/recentCodes'
+import { isRecentCodesSupported } from '@/utils/recentCodesDb'
+import { recordRecentCode, takeRestore } from '@/utils/useRecentCodes'
 import { storageGet, storageSet } from '@/utils/safeStorage'
 import { getScanWarnings } from '@/utils/scanCheck'
 import { computed, onUnmounted, reactive, ref, watch } from 'vue'
@@ -33,9 +36,19 @@ import { useI18n } from 'vue-i18n'
 
 const codeType = defineModel<CodeType>('codeType', { required: true })
 const props = defineProps<{
-  /** Data to start with, e.g. from "Create a code with this data" on the Scan page. */
-  initialData?: { type: BarcodeType; data: string } | null
+  /**
+   * Data to start with, e.g. from "Create a code with this data" on the Scan
+   * page. A code opened from Recent codes also brings its settings, applied
+   * once per `restoreId`.
+   */
+  initialData?: {
+    type: BarcodeType
+    data: string
+    settings?: Record<string, unknown>
+    restoreId?: number
+  } | null
 }>()
+const emit = defineEmits<{ (e: 'open-recent-codes'): void }>()
 const { t } = useI18n()
 
 const type = computed(() => codeType.value as BarcodeType)
@@ -92,6 +105,23 @@ watch(settings, (value) => storageSet(SETTINGS_KEY, JSON.stringify(value)), { de
 const printSettings = ref<PrintSettings>(load(PRINT_KEY, DEFAULT_PRINT_SETTINGS))
 watch(printSettings, (value) => storageSet(PRINT_KEY, JSON.stringify(value)), { deep: true })
 
+// An opened code brings back its colours and options; only known settings of
+// the right type are taken.
+watch(
+  () => props.initialData,
+  (initial) => {
+    if (!initial?.settings || initial.restoreId === undefined) return
+    if (!takeRestore(initial.restoreId)) return
+    const next: Record<string, unknown> = { ...settings.value }
+    for (const [key, fallback] of Object.entries(DEFAULT_SETTINGS)) {
+      const saved = initial.settings[key]
+      if (typeof saved === typeof fallback) next[key] = saved
+    }
+    settings.value = next as unknown as BarcodeSettings
+  },
+  { immediate: true }
+)
+
 const MIN_SCALE = 1
 const MAX_SCALE = 20
 const scale = computed(() =>
@@ -109,6 +139,8 @@ const colors = computed(() => ({
 interface Encoded {
   barcode: BarcodeSvg
   type: BarcodeType
+  /** The text as typed. */
+  text: string
   /** What a scanner should read back (check digits added etc.). */
   expected: string
   /** What was encoded, before any check digit was added. */
@@ -143,6 +175,7 @@ async function encode() {
     encoded.value = {
       barcode,
       type: forType,
+      text,
       prepared,
       expected: forFormat.expectedText(prepared)
     }
@@ -274,10 +307,36 @@ async function rasterExport(mimeType: 'image/png' | 'image/jpeg'): Promise<Blob>
   })
 }
 
+// The barcode being exported, copied when the button is pressed.
+function snapshotForRecentCodes() {
+  const current = encoded.value
+  if (!current || !isRecentCodesSupported()) return null
+  return {
+    type: current.type,
+    text: current.text,
+    settings: JSON.parse(JSON.stringify(settings.value)) as BarcodeSettings,
+    thumbnail: svgDataUrl(styleBarcodeSvg(current.barcode, { ...colors.value, scale: 1 }))
+  }
+}
+
+function addToRecentCodes(snapshot: ReturnType<typeof snapshotForRecentCodes>) {
+  if (!snapshot) return
+  void recordRecentCode(() =>
+    newRecentBarcode(
+      snapshot.type,
+      snapshot.text,
+      snapshot.settings,
+      snapshot.thumbnail,
+      Date.now()
+    )
+  )
+}
+
 async function download(kind: 'png' | 'jpg' | 'svg') {
   if (!barcode.value || isExporting.value) return
   isExporting.value = true
   exportError.value = null
+  const snapshot = snapshotForRecentCodes()
   try {
     if (kind === 'svg') {
       downloadBlob(
@@ -288,6 +347,7 @@ async function download(kind: 'png' | 'jpg' | 'svg') {
       const blob = await rasterExport(kind === 'png' ? 'image/png' : 'image/jpeg')
       downloadBlob(blob, `${exportName.value}.${kind}`)
     }
+    addToRecentCodes(snapshot)
   } catch (err) {
     console.error('Barcode export failed:', err)
     exportError.value = t("Couldn't create the file. Try again, or try another format.")
@@ -299,9 +359,11 @@ async function download(kind: 'png' | 'jpg' | 'svg') {
 const copied = ref(false)
 async function copyToClipboard() {
   if (!barcode.value) return
+  const snapshot = snapshotForRecentCodes()
   try {
     const blob = await rasterExport('image/png')
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    addToRecentCodes(snapshot)
     copied.value = true
     setTimeout(() => (copied.value = false), 2000)
   } catch (err) {
@@ -475,6 +537,14 @@ async function copyToClipboard() {
             {{ copied ? t('Copied') : t('Copy') }}
           </button>
         </div>
+        <button
+          v-if="isRecentCodesSupported()"
+          id="barcode-recent-codes-button"
+          class="secondary-button self-center"
+          @click="emit('open-recent-codes')"
+        >
+          {{ t('Recent codes') }}
+        </button>
         <p v-if="exportError" role="alert" class="text-sm text-red-700 dark:text-red-400">
           {{ exportError }}
         </p>

@@ -19,6 +19,8 @@ visits; that never includes what you type.
 - Export to PNG, JPG, SVG and plain-text QR codes, or copy to the clipboard
 - Batch export from a CSV file
 - Frames with captions, logos, colours and dot styles; save and load settings
+- Recent codes: the last 20 codes you download, copy or save, kept in your
+  browser so you can open them again
 - Compact encoding (numbers and capitals take fewer modules) and an optional
   fixed size, so every code in a batch matches
 - Checks that each code scans (a test decode in your browser) and warns about
@@ -157,7 +159,7 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
   Windows-1252, are read correctly; the Scan page no longer adds a paste
   listener on every visit.
 - **Lighter page** (2026-10-05). The scanner and JSZip load only when used:
-  the main script is 627 KB instead of 1,058 KB (220 KB gzipped instead of
+  the main script is 642 KB instead of 1,058 KB (225 KB gzipped instead of
   348 KB).
 - **Content-Security-Policy** (2026-10-05). The built page carries a policy
   that only allows scripts from this site (plus the visitor-stats beacon), so
@@ -165,6 +167,26 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
   Permissions-Policy (camera only) and COOP. The bot-detection snippet the
   host adds to every b0r3d.org page is blocked by it on purpose; `verify:site`
   lists those blocks without failing.
+- **Recent codes** (2026-10-07). The last 20 codes you download, copy or
+  save (QR codes and other barcodes, not batch exports) are kept in this
+  browser and listed under "Recent codes", where each can be opened again
+  with its data and settings, deleted, or all cleared. Making the same data
+  again replaces the older entry, so the list holds 20 different codes.
+  They live in IndexedDB, not localStorage: localStorage holds about 5
+  million characters per site and already keeps the current design, so a
+  few codes with logos would fill it. Each entry is a few KB plus its logo
+  (logos and frame backgrounds over 2 MB aren't kept). Nothing is sent
+  anywhere. The first code added shows a note saying so, with a button to
+  stop; the list has the same switch. A Wi-Fi code with a password is listed
+  by network name only, with no picture of the code. The browser may still
+  delete the list (clearing site data, closing a private window, or Safari
+  after days without a visit), and the list says so. The saved design no
+  longer includes the data, which was never read back, so clearing the list
+  removes every code kept. `VITE_DISABLE_LOCAL_STORAGE=true` turns Recent
+  codes off too. Also fixed along the way: opening two framed configs in a
+  row lost the frame, a loaded config could keep the previous frame's
+  background image or font, and a download within half a second of typing
+  exported the previous data.
 - **Space around logos** (2026-10-06). A "Logo space (modules)" setting, 1
   module by default, leaves blank space between a centre logo and the dots.
   It replaces "Image margin (px)", which defaulted to none and was measured in

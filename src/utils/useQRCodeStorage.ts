@@ -24,9 +24,11 @@ export interface QRCodeConfig {
 export const QR_CODE_STORAGE_KEY = 'qrCodeConfig'
 export const LAST_LOADED_LOCALLY_PRESET_KEY = 'Last saved locally'
 export const LOADED_FROM_FILE_PRESET_KEY = 'Loaded from file'
+export const RECENT_CODES_PRESET_KEY = 'Opened from Recent codes'
 export const CUSTOM_LOADED_PRESET_KEYS = [
   LAST_LOADED_LOCALLY_PRESET_KEY,
-  LOADED_FROM_FILE_PRESET_KEY
+  LOADED_FROM_FILE_PRESET_KEY,
+  RECENT_CODES_PRESET_KEY
 ] as const
 
 export function isLocalStorageEnabled(): boolean {
@@ -45,8 +47,15 @@ export function serializeQRConfig(
   return { props, style, frame }
 }
 
+/**
+ * Remembers the current design between visits. The data is left out: it is
+ * never read back (each visit starts with an empty field), and leaving it
+ * out means Recent codes is the one place codes are kept, so clearing that
+ * really clears them.
+ */
 export function saveQRConfig(config: QRCodeConfig): void {
-  storageSet(QR_CODE_STORAGE_KEY, JSON.stringify(config))
+  const { data: _data, ...props } = config.props
+  storageSet(QR_CODE_STORAGE_KEY, JSON.stringify({ ...config, props }))
 }
 
 export function loadQRConfig(): QRCodeConfig | null {

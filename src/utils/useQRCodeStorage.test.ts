@@ -8,6 +8,7 @@ import {
   QR_CODE_STORAGE_KEY,
   LAST_LOADED_LOCALLY_PRESET_KEY,
   LOADED_FROM_FILE_PRESET_KEY,
+  RECENT_CODES_PRESET_KEY,
   CUSTOM_LOADED_PRESET_KEYS,
   QR_VIEW_MODE_STORAGE_KEY,
   QR_SIMPLE_FIELDS_STORAGE_KEY,
@@ -77,6 +78,7 @@ describe('Constants', () => {
     expect(LOADED_FROM_FILE_PRESET_KEY).toBe('Loaded from file')
     expect(CUSTOM_LOADED_PRESET_KEYS).toContain(LAST_LOADED_LOCALLY_PRESET_KEY)
     expect(CUSTOM_LOADED_PRESET_KEYS).toContain(LOADED_FROM_FILE_PRESET_KEY)
+    expect(CUSTOM_LOADED_PRESET_KEYS).toContain(RECENT_CODES_PRESET_KEY)
   })
 })
 
@@ -109,17 +111,23 @@ describe('saveQRConfig and loadQRConfig', () => {
     localStorage.clear()
   })
 
-  it('saves config to localStorage as JSON', () => {
+  // The design is remembered between visits; the data never is (each visit
+  // starts with an empty field), so it isn't stored either.
+  const { data: _data, ...propsWithoutData } = sampleConfig.props
+  const sampleConfigWithoutData = { ...sampleConfig, props: propsWithoutData }
+
+  it('saves config to localStorage as JSON, without the data', () => {
     saveQRConfig(sampleConfig)
     const stored = localStorage.getItem(QR_CODE_STORAGE_KEY)
     expect(stored).not.toBeNull()
-    expect(JSON.parse(stored!)).toEqual(sampleConfig)
+    expect(JSON.parse(stored!)).toEqual(sampleConfigWithoutData)
+    expect(stored).not.toContain('https://example.com')
   })
 
   it('loads a previously saved config from localStorage', () => {
     saveQRConfig(sampleConfig)
     const loaded = loadQRConfig()
-    expect(loaded).toEqual(sampleConfig)
+    expect(loaded).toEqual(sampleConfigWithoutData)
   })
 
   it('loads config with frame data correctly', () => {
@@ -198,7 +206,7 @@ describe('saveQRConfig and loadQRConfig', () => {
 
   it('returns the config when frame is null', () => {
     saveQRConfig(sampleConfig)
-    expect(loadQRConfig()).toEqual(sampleConfig)
+    expect(loadQRConfig()).toEqual(sampleConfigWithoutData)
   })
 
   it('overwrites previous config when saved again', () => {

@@ -119,13 +119,27 @@ export async function getPngElement(input: ImageExportInput): Promise<string> {
   return blobToDataUrl(blob)
 }
 
-export async function downloadPngElement(input: ImageExportInput, filename: string): Promise<void> {
+/** Resolves to whether the file was made and handed to the browser. */
+export async function downloadPngElement(
+  input: ImageExportInput,
+  filename: string
+): Promise<boolean> {
   try {
     const blob = await getPngBlob(input)
     downloadBlob(blob, filename)
+    return true
   } catch (error) {
     console.error('Error generating PNG export:', error)
+    return false
   }
+}
+
+/**
+ * A small PNG of the code (about `side` px on its shorter edge) as a data:
+ * URL, for the Recent codes list. Screen size, whatever print size is set.
+ */
+export async function getThumbnailDataUrl(input: ImageExportInput, side = 160): Promise<string> {
+  return getPngElement({ ...input, print: undefined, targetSize: { width: side, height: side } })
 }
 
 /* ---------- JPG ---------- */
@@ -139,27 +153,36 @@ export async function getJpgElement(input: ImageExportInput): Promise<string> {
   return blobToDataUrl(blob)
 }
 
-export async function downloadJpgElement(input: ImageExportInput, filename: string): Promise<void> {
+/** Resolves to whether the file was made and handed to the browser. */
+export async function downloadJpgElement(
+  input: ImageExportInput,
+  filename: string
+): Promise<boolean> {
   try {
     const blob = await getJpgBlob(input)
     downloadBlob(blob, filename)
+    return true
   } catch (error) {
     console.error('Error generating JPG export:', error)
+    return false
   }
 }
 
 /* ---------- Clipboard ---------- */
 
-export async function copyImageToClipboard(input: ImageExportInput): Promise<void> {
+/** Resolves to whether the image reached the clipboard. */
+export async function copyImageToClipboard(input: ImageExportInput): Promise<boolean> {
   if (!IS_COPY_IMAGE_TO_CLIPBOARD_SUPPORTED) {
     console.error('Clipboard.write is not supported')
-    return
+    return false
   }
   try {
     const blob = await getPngBlob(input)
     await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
+    return true
   } catch (error) {
     console.error('Error copying image to clipboard:', error)
+    return false
   }
 }
 
@@ -188,16 +211,19 @@ export function getSvgElement(input: PrintableSvgInput): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(getSvgString(input))}`
 }
 
+/** Resolves to whether the file was made and handed to the browser. */
 export async function downloadSvgElement(
   input: PrintableSvgInput,
   filename: string
-): Promise<void> {
+): Promise<boolean> {
   try {
     const svgString = await getInlinedSvgString(input)
     const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
     downloadBlob(blob, filename)
+    return true
   } catch (error) {
     console.error('Error generating SVG export:', error)
+    return false
   }
 }
 

@@ -46,7 +46,8 @@ import {
   getInlinedSvgString,
   getJpgElement,
   getPngBlob,
-  getPngElement
+  getPngElement,
+  getThumbnailDataUrl
 } from '@/utils/convertToImage'
 import { downloadBlob } from '@/utils/download'
 import { parseCSV, readCSVFile, validateCSVData, type CSVParsingResult } from '@/utils/csv'
@@ -78,6 +79,7 @@ import {
   isLocalStorageEnabled,
   LAST_LOADED_LOCALLY_PRESET_KEY,
   LOADED_FROM_FILE_PRESET_KEY,
+  RECENT_CODES_PRESET_KEY,
   loadQRConfig,
   loadSimpleFields,
   loadViewMode,
@@ -112,6 +114,9 @@ import {
   type Options as StyledQRCodeProps,
   type TypeNumber
 } from '@/lib/qr-code'
+import { newRecentQrCode } from '@/utils/recentCodes'
+import { isRecentCodesSupported } from '@/utils/recentCodesDb'
+import { recordRecentCode } from '@/utils/useRecentCodes'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import 'vue-i18n'
 import { useI18n } from 'vue-i18n'
@@ -123,6 +128,7 @@ const props = defineProps<{
 }>()
 // QR by default; picking another type swaps this view for the barcode one.
 const codeType = defineModel<CodeType>('codeType', { default: 'qr' })
+const emit = defineEmits<{ (e: 'open-recent-codes'): void }>()
 
 const mainContentContainer = ref<HTMLElement | null>(null)
 const isLarge = useMediaQuery('(min-width: 768px)')
@@ -287,6 +293,14 @@ watch(
   },
   { immediate: true }
 )
+
+// Exports and saves use what is typed now, not what the preview shows after
+// the typing delay: a click within half a second of typing used to export
+// the previous data.
+function flushDataDebounce() {
+  clearTimeout(dataDebounceTimer)
+  debouncedData.value = data.value
+}
 const image = ref()
 // The logo the preview, scan check and exports actually use. A remote address
 // is fetched once and inlined, or left out if its site won't share it (see
@@ -736,7 +750,11 @@ function applySelectedPresetToState() {
   const frame = (preset as Preset & { frame?: QRCodeFrameConfig }).frame
   if (frame) {
     applyFrameFromPreset(frame)
-    const framePresetName = import.meta.env.VITE_FRAME_PRESET || preset.name
+    // A loaded configuration keeps its own frame.
+    const isLoaded = (CUSTOM_LOADED_PRESET_KEYS as readonly string[]).includes(preset.name)
+    const framePresetName = isLoaded
+      ? preset.name
+      : import.meta.env.VITE_FRAME_PRESET || preset.name
     if (allFramePresets.some((p) => p.name === framePresetName)) {
       selectedFramePresetKey.value = framePresetName
     }
@@ -750,10 +768,7 @@ watch(selectedPreset, applySelectedPresetToState, { immediate: true })
 //#region /* Default QR code text */
 const defaultQRCodeText = computed(() => t('Have nice day!'))
 const lastCustomLoadedFramePreset = ref<FramePreset>()
-const CUSTOM_LOADED_FRAME_PRESET_KEYS = [
-  LAST_LOADED_LOCALLY_PRESET_KEY,
-  LOADED_FROM_FILE_PRESET_KEY
-]
+const CUSTOM_LOADED_FRAME_PRESET_KEYS: readonly string[] = CUSTOM_LOADED_PRESET_KEYS
 
 const allFramePresetOptions = computed(() => {
   const options = lastCustomLoadedFramePreset.value
@@ -928,13 +943,16 @@ const showSafariCopyImageModal = ref(false)
 const copyModalIsLoading = ref(false)
 const copyModalImageSrc = ref<string | null>(null)
 
-async function openCopyModal() {
+/** Resolves to whether the image is ready to copy. */
+async function openCopyModal(): Promise<boolean> {
   copyModalIsLoading.value = true
   try {
     copyModalImageSrc.value = await getPngElement(buildImageExportInput())
     showSafariCopyImageModal.value = true
+    return true
   } catch (error) {
     console.error('Error preparing image for copy modal:', error)
+    return false
   } finally {
     copyModalIsLoading.value = false
   }
@@ -946,13 +964,15 @@ function closeCopyModal() {
 }
 // #endregion
 
-function copyQRToClipboard() {
+async function copyQRToClipboard() {
+  flushDataDebounce()
+  const snapshot = snapshotForRecentCodes()
   if (IS_COPY_IMAGE_TO_CLIPBOARD_SUPPORTED) {
-    copyImageToClipboard(buildImageExportInput())
+    if (await copyImageToClipboard(buildImageExportInput())) addToRecentCodes(snapshot)
   } else if (!isLikelyMobileDevice.value) {
     // for now we only open the copy image modal on safari desktop because
     // this modal will be hidden behind the export image modal on mobile viewport.
-    openCopyModal()
+    if (await openCopyModal()) addToRecentCodes(snapshot)
   }
 }
 
@@ -960,19 +980,24 @@ function copyQRToClipboard() {
  * Downloads QR code in specified format, handling both single and batch exports
  * @param format The format to download: 'png', 'svg', or 'jpg'
  */
-function downloadQRImage(format: 'png' | 'svg' | 'jpg') {
+async function downloadQRImage(format: 'png' | 'svg' | 'jpg') {
   if (exportMode.value === ExportMode.Single) {
+    flushDataDebounce()
     // Sanitize filename to remove invalid characters
     const sanitizedFilename = (exportFilename.value || 'qr-code').replace(/[^a-zA-Z0-9_-]/g, '_')
+    const snapshot = snapshotForRecentCodes()
 
+    let ok: boolean
     if (format === 'svg') {
-      downloadSvgElement(buildSvgExportInput(), `${sanitizedFilename}.svg`)
+      ok = await downloadSvgElement(buildSvgExportInput(), `${sanitizedFilename}.svg`)
     } else if (format === 'png') {
-      downloadPngElement(buildImageExportInput(), `${sanitizedFilename}.png`)
+      ok = await downloadPngElement(buildImageExportInput(), `${sanitizedFilename}.png`)
     } else {
-      downloadJpgElement(buildImageExportInput(), `${sanitizedFilename}.jpg`)
+      ok = await downloadJpgElement(buildImageExportInput(), `${sanitizedFilename}.jpg`)
     }
+    if (ok) addToRecentCodes(snapshot)
   } else {
+    // Batch exports aren't added to Recent codes: a CSV can hold hundreds.
     generateBatchQRCodes(format)
   }
 }
@@ -1009,6 +1034,56 @@ function buildImageExportInput() {
 }
 //#endregion
 
+//#region /* Recent codes */
+// What the exported file shows, copied when the button is pressed (the editor
+// can change while the file is made). The logo is kept as drawn, so a code
+// whose logo came from a web address opens the same way, even offline.
+function snapshotForRecentCodes() {
+  if (!isRecentCodesSupported()) return null
+  return JSON.parse(
+    JSON.stringify({
+      config: serializeQRConfig(
+        qrCodeProps.value,
+        style.value,
+        showFrame.value ? (frameSettings.value as QRCodeFrameConfig) : null
+      ),
+      input: buildImageExportInput()
+    })
+  ) as { config: QRCodeConfig; input: ReturnType<typeof buildImageExportInput> }
+}
+
+function addToRecentCodes(snapshot: ReturnType<typeof snapshotForRecentCodes>) {
+  if (!snapshot) return
+  void recordRecentCode(async () => {
+    const thumbnail = await getThumbnailDataUrl(snapshot.input).catch(() => undefined)
+    return newRecentQrCode(snapshot.config, thumbnail, Date.now())
+  })
+}
+
+/** Opens a code from Recent codes: its data and settings, like a loaded file. */
+async function openRecentCode(config: QRCodeConfig) {
+  if (exportMode.value !== ExportMode.Single) {
+    // Leaving batch mode clears the data field; let that happen first.
+    exportMode.value = ExportMode.Single
+    await nextTick()
+  }
+  applyQRConfigFromJsonString(JSON.stringify(config), RECENT_CODES_PRESET_KEY, {
+    restoreData: true
+  })
+  // Show, check and export the opened data at once, not after the typing delay.
+  flushDataDebounce()
+}
+
+function showRecentCodes() {
+  // On phones the button sits in the export sheet; close it so the list
+  // isn't stacked on top of it.
+  isMobileExportDrawerOpen.value = false
+  emit('open-recent-codes')
+}
+
+defineExpose({ openRecentCode })
+//#endregion
+
 //#region /* QR Config Utils - Saving, Loading and Downloading */
 function buildCurrentQRConfig(): QRCodeConfig {
   return serializeQRConfig(
@@ -1021,15 +1096,21 @@ function buildCurrentQRConfig(): QRCodeConfig {
 
 function downloadQRConfig() {
   console.debug('Downloading QR code config')
+  flushDataDebounce()
   const config = buildCurrentQRConfig()
   const blob = new Blob([JSON.stringify(config)], { type: 'application/json' })
   downloadBlob(blob, 'qr-code-config.json')
+  addToRecentCodes(snapshotForRecentCodes())
 }
 
 function applyQRConfig(config: QRCodeConfig, key?: string, options?: { restoreData?: boolean }) {
+  // The frame goes with the preset: applying a preset without one turns the
+  // frame off, which lost the frame when the same kind of config was loaded
+  // twice in a row (the frame preset key didn't change, so nothing put it back).
   const preset = {
     ...config.props,
-    style: config.style
+    style: config.style,
+    ...(config.frame ? { frame: config.frame } : {})
   } as Preset
 
   if (key) {
@@ -1060,7 +1141,9 @@ function applyQRConfig(config: QRCodeConfig, key?: string, options?: { restoreDa
       )
     )
     frameCaptionWidth.value = frameWidth.value - PREVIEW_QRCODE_DIM_UNIT
-    frameStyle.value = { ...frameStyle.value, ...config.frame.style }
+    // Replaced, not merged: a background image or font the config doesn't
+    // have must not stay from the previous design.
+    frameStyle.value = toFrameStyle(config.frame.style)
 
     const restoredFontFamily = config.frame.style.fontFamily
     if (restoredFontFamily) {
@@ -1787,7 +1870,7 @@ const updateDataFromModal = (newData: string) => {
             :info="encodedInfo"
             :is-placeholder="!data"
           />
-          <div class="flex flex-col items-center justify-center gap-2">
+          <div class="mb-2 flex flex-col items-center justify-center gap-2">
             <button
               v-if="exportMode !== ExportMode.Batch"
               id="copy-qr-image-button"
@@ -1859,6 +1942,33 @@ const updateDataFromModal = (newData: string) => {
                 </g>
               </svg>
               <p>{{ t('Load QR Code configuration') }}</p>
+            </button>
+            <button
+              v-if="isRecentCodesSupported()"
+              id="recent-codes-button"
+              class="button flex w-fit max-w-full flex-row items-center gap-1"
+              @click="showRecentCodes"
+            >
+              <!-- Tabler Icons "history" (MIT) -->
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <g
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                >
+                  <path d="M12 8v4l2 2" />
+                  <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5" />
+                </g>
+              </svg>
+              <p>{{ t('Recent codes') }}</p>
             </button>
           </div>
           <section

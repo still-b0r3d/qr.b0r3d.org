@@ -18,7 +18,8 @@ const BROWSER_TESTS = [
   'src/utils/imageUpload.test.ts',
   'src/lib/barcode/create.test.ts',
   'src/lib/qr-code/legacy-adapter.test.ts',
-  'src/lib/qr-code/render/canvas.test.ts'
+  'src/lib/qr-code/render/canvas.test.ts',
+  'src/utils/recentCodesDb.test.ts'
 ]
 
 export default defineWorkspace([
