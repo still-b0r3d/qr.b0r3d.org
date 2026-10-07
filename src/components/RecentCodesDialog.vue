@@ -16,6 +16,7 @@ import {
 import RecentCodesList from '@/components/RecentCodesList.vue'
 import { MAX_RECENT_CODES, type RecentCodeDetails } from '@/utils/recentCodes'
 import { useMediaQuery } from '@vueuse/core'
+import { nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 defineProps<{ open: boolean }>()
@@ -25,6 +26,14 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 const isLarge = useMediaQuery('(min-width: 768px)')
+
+// The drawer doesn't move focus into itself; without this, keyboard focus
+// stays on the page behind it.
+const drawerList = ref<InstanceType<typeof RecentCodesList> | null>(null)
+function focusDrawer(event: Event) {
+  event.preventDefault()
+  void nextTick(() => drawerList.value?.focus())
+}
 </script>
 
 <template>
@@ -47,7 +56,7 @@ const isLarge = useMediaQuery('(min-width: 768px)')
   </Dialog>
 
   <Drawer v-else :open="open" @update:open="emit('update:open', $event)">
-    <DrawerContent>
+    <DrawerContent @open-auto-focus="focusDrawer">
       <DrawerHeader>
         <DrawerTitle>{{ t('Recent codes') }}</DrawerTitle>
         <DrawerDescription>
@@ -59,7 +68,11 @@ const isLarge = useMediaQuery('(min-width: 768px)')
         </DrawerDescription>
       </DrawerHeader>
       <div class="max-h-[70dvh] overflow-y-auto px-4 pb-4">
-        <RecentCodesList id="recent-codes-dialog" @open="emit('open-code', $event)" />
+        <RecentCodesList
+          id="recent-codes-dialog"
+          ref="drawerList"
+          @open="emit('open-code', $event)"
+        />
       </div>
     </DrawerContent>
   </Drawer>

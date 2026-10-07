@@ -116,7 +116,7 @@ import {
 } from '@/lib/qr-code'
 import { newRecentQrCode } from '@/utils/recentCodes'
 import { isRecentCodesSupported } from '@/utils/recentCodesDb'
-import { recordRecentCode } from '@/utils/useRecentCodes'
+import { recentCodesState, recordRecentCode } from '@/utils/useRecentCodes'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import 'vue-i18n'
 import { useI18n } from 'vue-i18n'
@@ -1074,11 +1074,21 @@ async function openRecentCode(config: QRCodeConfig) {
   flushDataDebounce()
 }
 
+// On phones the button sits in the export sheet. It is closed so the list
+// isn't stacked on top of it, without handing focus back to the sheet's
+// handle (behind the list) as it normally would on closing.
+let isHandingOffToRecentCodes = false
 function showRecentCodes() {
-  // On phones the button sits in the export sheet; close it so the list
-  // isn't stacked on top of it.
-  isMobileExportDrawerOpen.value = false
+  if (isMobileExportDrawerOpen.value) {
+    isHandingOffToRecentCodes = true
+    isMobileExportDrawerOpen.value = false
+  }
   emit('open-recent-codes')
+}
+function onExportSheetCloseAutoFocus(event: Event) {
+  if (!isHandingOffToRecentCodes) return
+  isHandingOffToRecentCodes = false
+  event.preventDefault()
 }
 
 defineExpose({ openRecentCode })
@@ -1100,7 +1110,10 @@ function downloadQRConfig() {
   const config = buildCurrentQRConfig()
   const blob = new Blob([JSON.stringify(config)], { type: 'application/json' })
   downloadBlob(blob, 'qr-code-config.json')
-  addToRecentCodes(snapshotForRecentCodes())
+  // A saved design is a code made, but not the sample text or a batch row.
+  if (exportMode.value === ExportMode.Single && data.value.trim() !== '') {
+    addToRecentCodes(snapshotForRecentCodes())
+  }
 }
 
 function applyQRConfig(config: QRCodeConfig, key?: string, options?: { restoreData?: boolean }) {
@@ -1308,6 +1321,9 @@ enum ExportMode {
 const exportFilename = ref('qr-code')
 const isTextExportModalOpen = ref(false)
 const isMobileExportDrawerOpen = ref(false)
+// The Recent codes note waits for the sheet to close, or it would sit behind it.
+watch(isMobileExportDrawerOpen, (open) => (recentCodesState.exportSheetOpen = open))
+onUnmounted(() => (recentCodesState.exportSheetOpen = false))
 const asciiMatrix = computed<boolean[][]>(() => {
   if (!data.value) return []
   try {
@@ -1779,7 +1795,7 @@ const updateDataFromModal = (newData: string) => {
           </div>
         </div>
       </DrawerTrigger>
-      <DrawerContent>
+      <DrawerContent @close-auto-focus="onExportSheetCloseAutoFocus">
         <DrawerHeader>
           <DrawerTitle>{{ t('Export QR code') }}</DrawerTitle>
         </DrawerHeader>

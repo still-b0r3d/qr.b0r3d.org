@@ -370,7 +370,11 @@ const isModeToggleDisabled = computed(() => {
       v-model:open="isRecentCodesOpen"
       @open-code="openRecentCode"
     />
-    <RecentCodesNotice v-if="recentCodesState.showNotice" @view="isRecentCodesOpen = true" />
+    <!-- Waits for the phone export sheet to close, or it would sit behind it. -->
+    <RecentCodesNotice
+      v-if="recentCodesState.showNotice && !recentCodesState.exportSheetOpen"
+      @view="isRecentCodesOpen = true"
+    />
   </main>
 </template>
 

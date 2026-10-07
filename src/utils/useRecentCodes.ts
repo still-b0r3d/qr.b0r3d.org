@@ -8,6 +8,10 @@ export const recentCodesState = reactive({
   changes: 0,
   /** The note saying where codes go, shown after the first one is added. */
   showNotice: false,
+  /** The code that note is about, so "Don't keep codes" can delete it. */
+  noticeCodeId: undefined as number | undefined,
+  /** The phone export sheet is open; the note waits until it closes. */
+  exportSheetOpen: false,
   /** The last code couldn't be kept because storage for this site is full. */
   storageFull: false
 })
@@ -23,11 +27,14 @@ export async function recordRecentCode(
   if (!isRecentCodesSupported()) return
   try {
     if (!(await isRememberingRecentCodes())) return
-    const { status, firstTime } = await addRecentCode(await make())
+    const { status, firstTime, id } = await addRecentCode(await make())
     recentCodesState.storageFull = status === 'full'
     if (status === 'saved') {
       recentCodesState.changes++
-      if (firstTime) recentCodesState.showNotice = true
+      if (firstTime) {
+        recentCodesState.noticeCodeId = id
+        recentCodesState.showNotice = true
+      }
     }
   } catch (err) {
     console.warn("Couldn't add the code to Recent codes:", err)

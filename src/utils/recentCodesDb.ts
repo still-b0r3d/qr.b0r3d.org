@@ -176,7 +176,9 @@ async function inTransaction<T>(
         // Already finished or aborted.
       }
       await done.catch(() => undefined)
-      throw err
+      // When a write fails (say, storage is full), the requests still waiting
+      // fail with a plain AbortError; the transaction holds the real error.
+      throw tx.error ?? err
     }
     await done
     return value
@@ -217,14 +219,19 @@ function trimTo(
 /**
  * Adds a code, replacing an earlier one with the same data, and drops the
  * oldest beyond MAX_RECENT_CODES. `firstTime` is true the first time a code
- * is added in this browser, so the app can say where it went.
+ * is added in this browser, so the app can say where it went; `id` is the new
+ * entry's.
+ *
+ * When storage is full nothing is dropped to make room: deleting doesn't
+ * reliably free space at once (Chromium compacts later), so it could cost
+ * older codes and still fail. The list says so and the user decides.
  */
 export async function addRecentCode(
   code: NewRecentCode
-): Promise<{ status: AddStatus; firstTime: boolean }> {
+): Promise<{ status: AddStatus; firstTime: boolean; id?: number }> {
   if (!isRecentCodesSupported()) return { status: 'unavailable', firstTime: false }
-  const save = () =>
-    inTransaction('readwrite', async ({ codes, details, meta }) => {
+  try {
+    return await inTransaction('readwrite', async ({ codes, details, meta }) => {
       if ((await result(meta.get(REMEMBER_KEY))) === false) {
         return { status: 'off' as const, firstTime: false }
       }
@@ -238,29 +245,13 @@ export async function addRecentCode(
           others.push(old)
         }
       }
-      const id = await result(codes.add(code.summary))
+      const id = (await result(codes.add(code.summary))) as number
       details.put(code.details, id)
       trimTo(codes, details, others, MAX_RECENT_CODES - 1)
       const firstTime = (await result(meta.get(NOTICE_KEY))) !== true
       if (firstTime) meta.put(true, NOTICE_KEY)
-      return { status: 'saved' as const, firstTime }
+      return { status: 'saved' as const, firstTime, id }
     })
-
-  try {
-    return await save()
-  } catch (err) {
-    if (!isQuotaError(err)) {
-      console.warn("Couldn't add the code to Recent codes:", err)
-      return { status: 'unavailable', firstTime: false }
-    }
-  }
-  // Storage is full: make room by dropping the older half, then try once more.
-  try {
-    await inTransaction('readwrite', async ({ codes, details }) => {
-      const all = (await result(codes.getAll())).filter(isSummary)
-      trimTo(codes, details, all, Math.floor(MAX_RECENT_CODES / 2))
-    })
-    return await save()
   } catch (err) {
     console.warn("Couldn't add the code to Recent codes:", err)
     return { status: isQuotaError(err) ? 'full' : 'unavailable', firstTime: false }

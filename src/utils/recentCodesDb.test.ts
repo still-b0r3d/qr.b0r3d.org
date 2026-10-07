@@ -45,7 +45,7 @@ describe('Recent codes storage', () => {
   })
 
   it('adds a code and reads it back, newest first', async () => {
-    expect(await addRecentCode(qr('https://a.example', 1))).toEqual({
+    expect(await addRecentCode(qr('https://a.example', 1))).toMatchObject({
       status: 'saved',
       firstTime: true
     })
@@ -102,17 +102,42 @@ describe('Recent codes storage', () => {
     expect((await listRecentCodes()).codes).toEqual([])
   })
 
-  it('reports a full disk instead of throwing, after trying to make room', async () => {
-    await addRecentCode(qr('https://a.example'))
+  it('reports a full disk, and drops no other code to make room', async () => {
+    for (let i = 1; i <= MAX_RECENT_CODES; i++) {
+      await addRecentCode(qr(`https://example.com/${i}`, i))
+    }
     vi.spyOn(IDBObjectStore.prototype, 'add').mockImplementation(() => {
       throw new DOMException('The quota has been exceeded.', 'QuotaExceededError')
     })
-    expect(await addRecentCode(qr('https://b.example'))).toEqual({
+    expect(await addRecentCode(qr('https://example.com/new', 99))).toEqual({
       status: 'full',
       firstTime: false
     })
     vi.restoreAllMocks()
-    expect((await listRecentCodes()).codes.map((c) => c.title)).toEqual(['https://a.example'])
+    expect((await listRecentCodes()).codes).toHaveLength(MAX_RECENT_CODES)
+  })
+
+  it('reports why a write failed, not the abort that followed it', async () => {
+    // Firefox and Safari fail the write request itself when storage is full;
+    // requests still waiting then fail with a plain AbortError. A second add
+    // of the same key fails the same way (with ConstraintError).
+    const put = IDBObjectStore.prototype.put
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (
+      this: IDBObjectStore,
+      ...args: Parameters<IDBObjectStore['put']>
+    ) {
+      const request = put.apply(this, args)
+      if (this.name === 'details') this.add(args[0], args[1])
+      return request
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    expect((await addRecentCode(qr('https://a.example'))).status).toBe('unavailable')
+    expect((warn.mock.calls[0][1] as DOMException).name).toBe('ConstraintError')
+  })
+
+  it('returns the id of the code it added', async () => {
+    const { id } = await addRecentCode(qr('https://a.example'))
+    expect((await listRecentCodes()).codes[0].id).toBe(id)
   })
 
   it('opens the database again when the browser closed the connection', async () => {

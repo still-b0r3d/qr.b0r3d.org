@@ -17,7 +17,7 @@ import {
   setRememberRecentCodes
 } from '@/utils/recentCodesDb'
 import { recentCodesState } from '@/utils/useRecentCodes'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const emit = defineEmits<{ (e: 'open', details: RecentCodeDetails): void }>()
@@ -29,6 +29,28 @@ const codes = ref<RecentCodeSummary[]>([])
 const remember = ref(true)
 const isConfirmingClear = ref(false)
 const message = ref('')
+const root = ref<HTMLElement | null>(null)
+const emptyMessage = ref<HTMLElement | null>(null)
+const clearButton = ref<HTMLElement | null>(null)
+
+/** Moves focus somewhere sensible after the focused button went away. */
+async function focusAfterChange(deleteIndex?: number) {
+  await nextTick()
+  const deleteButtons = root.value?.querySelectorAll<HTMLElement>('.recent-code-delete')
+  if (deleteIndex !== undefined && deleteButtons?.length) {
+    deleteButtons[Math.min(deleteIndex, deleteButtons.length - 1)].focus()
+  } else if (!codes.value.length) {
+    emptyMessage.value?.focus()
+  } else {
+    clearButton.value?.focus()
+  }
+}
+
+/** Focus for when the list opens in a drawer, which doesn't move focus itself. */
+function focus() {
+  root.value?.focus()
+}
+defineExpose({ focus })
 
 async function refresh() {
   const list = await listRecentCodes()
@@ -81,29 +103,49 @@ async function open(code: RecentCodeSummary) {
 
 async function remove(code: RecentCodeSummary) {
   isConfirmingClear.value = false
-  message.value = (await deleteRecentCode(code.id))
-    ? t('Deleted {name}.', { name: nameOf(code) })
-    : t("Couldn't delete it. Try again.")
+  const index = codes.value.findIndex((c) => c.id === code.id)
+  if (await deleteRecentCode(code.id)) {
+    message.value = t('Deleted {name}.', { name: nameOf(code) })
+    recentCodesState.storageFull = false
+  } else {
+    message.value = t("Couldn't delete it. Try again.")
+  }
   await refresh()
+  await focusAfterChange(index)
 }
 
+// The confirming click must be a separate click: the confirm button appears
+// where "Clear all" was, so a double-click would otherwise delete everything.
+const CONFIRM_DELAY_MS = 500
+let armedAt = 0
 async function clearAll() {
   if (!isConfirmingClear.value) {
     isConfirmingClear.value = true
+    armedAt = Date.now()
     return
   }
+  if (Date.now() - armedAt < CONFIRM_DELAY_MS) return
   isConfirmingClear.value = false
-  message.value = (await clearRecentCodes())
-    ? t('All recent codes deleted.')
-    : t("Couldn't delete them. Try again.")
-  recentCodesState.storageFull = false
+  if (await clearRecentCodes()) {
+    message.value = t('All recent codes deleted.')
+    recentCodesState.storageFull = false
+  } else {
+    message.value = t("Couldn't delete them. Try again.")
+  }
   await refresh()
+  await focusAfterChange()
+}
+
+function cancelClear() {
+  isConfirmingClear.value = false
+  void focusAfterChange()
 }
 
 async function setRemember(event: Event) {
   const checked = (event.target as HTMLInputElement).checked
   if (await setRememberRecentCodes(checked)) {
     remember.value = checked
+    if (!checked) recentCodesState.storageFull = false
     message.value = checked
       ? t('New codes will be added here.')
       : t('New codes won’t be added. The ones above stay until you delete them.')
@@ -115,7 +157,7 @@ async function setRemember(event: Event) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3 text-start text-sm">
+  <div ref="root" tabindex="-1" class="flex flex-col gap-3 text-start text-sm outline-none">
     <p v-if="isLoading" class="text-zinc-500 dark:text-zinc-400">{{ t('Loading…') }}</p>
     <p v-else-if="!isAvailable" role="status">
       {{
@@ -136,8 +178,17 @@ async function setRemember(event: Event) {
           )
         }}
       </p>
-      <p v-if="codes.length === 0" class="text-zinc-500 dark:text-zinc-400">
-        {{ t('Codes you download, copy or save will appear here.') }}
+      <p
+        v-if="codes.length === 0"
+        ref="emptyMessage"
+        tabindex="-1"
+        class="text-zinc-500 outline-none dark:text-zinc-400"
+      >
+        {{
+          remember
+            ? t('Codes you download, copy or save will appear here.')
+            : t('No codes are being added. Turn it on below to keep the codes you make.')
+        }}
       </p>
       <ul v-else id="recent-codes-list" class="flex flex-col">
         <li
@@ -227,7 +278,7 @@ async function setRemember(event: Event) {
           )
         }}
       </p>
-      <div class="flex flex-row flex-wrap items-center justify-between gap-2">
+      <div v-if="codes.length" class="flex flex-row flex-wrap items-center justify-between gap-2">
         <span class="text-xs text-zinc-500 dark:text-zinc-400">
           {{
             t('{count} of {max} codes, about {size}', {
@@ -237,17 +288,18 @@ async function setRemember(event: Event) {
             })
           }}
         </span>
-        <div v-if="codes.length" class="flex flex-row gap-2">
+        <div class="flex flex-row gap-2">
           <button
             v-if="isConfirmingClear"
             type="button"
             class="secondary-button px-3 py-1"
-            @click="isConfirmingClear = false"
+            @click="cancelClear"
           >
             {{ t('Cancel') }}
           </button>
           <button
             id="recent-codes-clear"
+            ref="clearButton"
             type="button"
             class="secondary-button px-3 py-1"
             :class="{ 'text-red-700 dark:text-red-400': isConfirmingClear }"
