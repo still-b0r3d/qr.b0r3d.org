@@ -224,6 +224,7 @@ and is never bumped by hand.
 | `0.33.0+b0r3d.4` | 2026-10-05 | Footer trimmed to one line, Mini QR credit moved to the README |
 | `0.33.0+b0r3d.5` | 2026-10-05 | Other barcode types, ZXing-C++ scanning, data template fixes   |
 | `0.33.0+b0r3d.6` | 2026-10-05 | Fix a blank page after deploys (asset caching)                 |
+| `0.33.0+b0r3d.7` | 2026-10-07 | Recent codes, clear space around centre logos                  |
 
 ## Development
 
