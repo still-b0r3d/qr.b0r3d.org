@@ -213,8 +213,8 @@ it.
   at 1, e.g. `0.34.0+b0r3d.1`.
 
 The footer shows the version and the **build**: the commit the site was built
-from, linked to its source on GitHub. The build is filled in automatically
-and is never bumped by hand.
+from. The build is filled in automatically and is never bumped by hand. The
+footer's Source link goes to this repository.
 
 | Version          | Date       | What changed                                                   |
 | ---------------- | ---------- | -------------------------------------------------------------- |
@@ -225,6 +225,7 @@ and is never bumped by hand.
 | `0.33.0+b0r3d.5` | 2026-10-05 | Other barcode types, ZXing-C++ scanning, data template fixes   |
 | `0.33.0+b0r3d.6` | 2026-10-05 | Fix a blank page after deploys (asset caching)                 |
 | `0.33.0+b0r3d.7` | 2026-10-07 | Recent codes, clear space around centre logos                  |
+| `0.33.0+b0r3d.8` | 2026-10-08 | The build number in the footer is plain text (Source links the code) |
 
 ## Development
 

@@ -7,7 +7,6 @@ const LICENSE_URL = `${SOURCE_URL}/blob/main/LICENSE`
 // Both come from vite.config.js; a build without them shows "dev".
 const VERSION = import.meta.env.VITE_APP_VERSION || 'dev'
 const COMMIT = import.meta.env.VITE_BUILD_COMMIT || ''
-const COMMIT_URL = `${SOURCE_URL}/commit/${COMMIT}`
 </script>
 
 <template>
@@ -17,14 +16,7 @@ const COMMIT_URL = `${SOURCE_URL}/commit/${COMMIT}`
       b0r3d QR v{{ VERSION }}
       <template v-if="COMMIT">
         <span aria-hidden="true"> · </span>
-        build
-        <a
-          :href="COMMIT_URL"
-          target="_blank"
-          rel="noopener noreferrer"
-          :title="`Source code for this build (${COMMIT})`"
-          >{{ COMMIT.slice(0, 7) }}</a
-        >
+        build {{ COMMIT.slice(0, 7) }}
       </template>
       <span aria-hidden="true"> · </span>
       <a :href="SOURCE_URL" target="_blank" rel="noopener noreferrer">Source</a>

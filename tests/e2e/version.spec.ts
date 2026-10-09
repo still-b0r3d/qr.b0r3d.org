@@ -7,12 +7,13 @@ const commit = execSync('git rev-parse HEAD').toString().trim()
 
 const SOURCE_URL = 'https://github.com/still-b0r3d/qr.b0r3d.org'
 
-test('the footer shows the version and links the build to its commit', async ({ page }) => {
+test('the footer shows the version and the build', async ({ page }) => {
   await page.goto('/')
   const footer = page.getByTestId('app-version')
   await expect(footer).toContainText(`b0r3d QR v${version}`)
-  const build = footer.getByRole('link', { name: commit.slice(0, 7), exact: true })
-  await expect(build).toHaveAttribute('href', `${SOURCE_URL}/commit/${commit}`)
+  await expect(footer).toContainText(`build ${commit.slice(0, 7)}`)
+  // The build is plain text; the Source link (below) is the way to the code.
+  await expect(footer.getByRole('link', { name: commit.slice(0, 7) })).toHaveCount(0)
 })
 
 test('the footer links the source and license (GPL)', async ({ page }) => {

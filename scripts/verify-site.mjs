@@ -123,14 +123,16 @@ async function run(base) {
     const back = await page.locator('footer a', { hasText: '← b0r3d.org' }).getAttribute('href')
     check('footer links back to b0r3d.org', back === 'https://b0r3d.org')
     const versionLine = page.getByTestId('app-version')
-    const buildHref = await versionLine
-      .getByRole('link', { name: /^[0-9a-f]{7}$/ })
+    const versionText = (await versionLine.innerText()).trim()
+    const sourceHref = await versionLine
+      .getByRole('link', { name: 'Source', exact: true })
       .getAttribute('href')
     check(
-      'footer shows the version and build',
-      (await versionLine.innerText()).includes(`b0r3d QR v${PKG_VERSION}`) &&
-        /\/commit\/[0-9a-f]{40}$/.test(buildHref || ''),
-      (await versionLine.innerText()).trim()
+      'footer shows the version and build, and links the source',
+      versionText.includes(`b0r3d QR v${PKG_VERSION}`) &&
+        /build [0-9a-f]{7}/.test(versionText) &&
+        sourceHref === 'https://github.com/still-b0r3d/qr.b0r3d.org',
+      versionText
     )
     const scanCheck = page.locator('#scan-check')
     await scanCheck
