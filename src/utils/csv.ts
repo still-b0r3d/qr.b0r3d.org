@@ -96,7 +96,7 @@ export const isVCardStructure = (header: string, delimiter = detectDelimiter(hea
  * @param csvContent The CSV content as a string
  * @returns Array of row strings
  */
-const splitCSVRows = (csvContent: string): string[] => {
+export const splitCSVRows = (csvContent: string): string[] => {
   const rows: string[] = []
   let currentRow = ''
   let insideQuotes = false

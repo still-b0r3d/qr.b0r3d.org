@@ -1,26 +1,51 @@
 import { describe, it, expect } from 'vitest'
 import {
   processCsvDataForBatch,
-  processCsvDataForBarcodeBatch,
+  parseBarcodeBatchCsv,
   generateBatchExportFilename
 } from './csvBatchProcessing'
 import type { CSVData } from './csv'
 
 describe('CSV Batch Processing', () => {
-  describe('processCsvDataForBarcodeBatch', () => {
-    it('extracts barcode items with data and optional filename', () => {
-      const csvData: CSVData[] = [
-        { url: '950600013435', fileName: 'item_1' },
-        { url: '03600029145', fileName: '' },
-        { url: '', fileName: 'empty' },
-        { url: 'B0R3D-128', fileName: 'badge' }
-      ]
-      const result = processCsvDataForBarcodeBatch(csvData)
-      expect(result).toEqual([
-        { data: '950600013435', fileName: 'item_1' },
-        { data: '03600029145', fileName: undefined },
-        { data: 'B0R3D-128', fileName: 'badge' }
+  describe('parseBarcodeBatchCsv', () => {
+    it('finds the code and file name columns by their header names', () => {
+      expect(
+        parseBarcodeBatchCsv('fileName,code\nshelf-a,950600013435\nshelf-b,4006381333931')
+      ).toEqual([
+        { data: '950600013435', fileName: 'shelf-a', row: 2 },
+        { data: '4006381333931', fileName: 'shelf-b', row: 3 }
       ])
+      expect(parseBarcodeBatchCsv('data,fileName\n950600013435,shelf-a')).toEqual([
+        { data: '950600013435', fileName: 'shelf-a', row: 2 }
+      ])
+    })
+
+    it('reads a list without a header from its first row', () => {
+      expect(parseBarcodeBatchCsv('950600013435\n4006381333931\n')).toEqual([
+        { data: '950600013435', fileName: undefined, row: 1 },
+        { data: '4006381333931', fileName: undefined, row: 2 }
+      ])
+      expect(parseBarcodeBatchCsv('950600013435,shelf-a')).toEqual([
+        { data: '950600013435', fileName: 'shelf-a', row: 1 }
+      ])
+    })
+
+    it("takes a QR batch file's url and fileName columns", () => {
+      expect(parseBarcodeBatchCsv('url,frameText,fileName\nB0R3D-1,Scan me,badge')).toEqual([
+        { data: 'B0R3D-1', fileName: 'badge', row: 2 }
+      ])
+    })
+
+    it('handles semicolons, a byte order mark, quotes and blank codes', () => {
+      expect(
+        parseBarcodeBatchCsv(
+          String.fromCharCode(0xfeff) + 'code;fileName\n"0123";a\n;empty\n\'0456;b'
+        )
+      ).toEqual([
+        { data: '0123', fileName: 'a', row: 2 },
+        { data: '0456', fileName: 'b', row: 4 }
+      ])
+      expect(parseBarcodeBatchCsv('')).toEqual([])
     })
   })
   describe('processCsvDataForBatch', () => {

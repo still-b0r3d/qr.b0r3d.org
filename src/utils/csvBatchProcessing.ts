@@ -1,4 +1,4 @@
-import { type CSVData, type VCardCSVData } from './csv'
+import { detectDelimiter, splitCSVLine, splitCSVRows, type CSVData, type VCardCSVData } from './csv'
 import { generateVCardData } from './dataEncoding'
 
 export interface BatchProcessingResult {
@@ -12,18 +12,43 @@ export interface BatchProcessingResult {
 export interface BarcodeBatchItem {
   data: string
   fileName?: string
+  /** Its row in the file, counting a header row (as a spreadsheet numbers them). */
+  row: number
 }
 
+// Header names, compared in lower case.
+const DATA_COLUMNS = ['data', 'code', 'barcode', 'value', 'text', 'url']
+const FILE_NAME_COLUMNS = ['filename', 'file name', 'file', 'name']
+
 /**
- * Processes parsed CSV data for batch barcode generation
+ * Reads a CSV for a barcode batch: one code per row. A header row is optional
+ * and is recognised by its names (data, code, barcode, value, text or url
+ * for the code; fileName for the file name), so a QR batch file works too.
+ * Without one, the first column is the code and the second the file name.
  */
-export function processCsvDataForBarcodeBatch(csvData: CSVData[]): BarcodeBatchItem[] {
-  return csvData
-    .map((row) => ({
-      data: 'firstName' in row ? `${row.firstName} ${row.lastName}` : row.url,
-      fileName: row.fileName || undefined
-    }))
-    .filter((item) => item.data && item.data.trim() !== '')
+export function parseBarcodeBatchCsv(content: string): BarcodeBatchItem[] {
+  // A byte order mark (U+FEFF) is not part of the first cell.
+  const text = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content
+  const rows = splitCSVRows(text)
+  if (rows.length === 0) return []
+  const delimiter = detectDelimiter(rows[0])
+  const first = splitCSVLine(rows[0], delimiter).map((cell) => cell.toLowerCase())
+  const dataColumn = first.findIndex((cell) => DATA_COLUMNS.includes(cell))
+  const fileColumn = first.findIndex((cell) => FILE_NAME_COLUMNS.includes(cell))
+  const hasHeader = dataColumn >= 0 || fileColumn >= 0
+  const dataAt = dataColumn >= 0 ? dataColumn : fileColumn === 0 ? 1 : 0
+  const fileAt = hasHeader ? fileColumn : 1
+
+  const items: BarcodeBatchItem[] = []
+  rows.forEach((line, index) => {
+    if (hasHeader && index === 0) return
+    const values = splitCSVLine(line, delimiter)
+    const data = values[dataAt] ?? ''
+    if (data.trim() === '') return
+    const fileName = fileAt >= 0 ? values[fileAt] || undefined : undefined
+    items.push({ data, fileName, row: index + 1 })
+  })
+  return items
 }
 
 /**

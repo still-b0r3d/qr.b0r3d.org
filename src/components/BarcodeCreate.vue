@@ -16,8 +16,8 @@ import { DEFAULT_BAR_HEIGHT, styleBarcodeSvg, svgDataUrl, type BarcodeSvg } from
 import { rasterizeSvg } from '@/lib/qr-code'
 import { IS_COPY_IMAGE_TO_CLIPBOARD_SUPPORTED } from '@/utils/clipboard'
 import { downloadBlob } from '@/utils/download'
-import { parseCSV, readCSVFile } from '@/utils/csv'
-import { processCsvDataForBarcodeBatch, type BarcodeBatchItem } from '@/utils/csvBatchProcessing'
+import { readCSVFile } from '@/utils/csv'
+import { parseBarcodeBatchCsv, type BarcodeBatchItem } from '@/utils/csvBatchProcessing'
 import { createPdfBlob, imagePixels } from '@/utils/pdf'
 import {
   barcodePrintGuidance,
@@ -308,12 +308,13 @@ const exportScale = computed(() => printGuidance.value?.modulePx ?? scale.value)
 const isExporting = ref(false)
 const exportError = ref<string | null>(null)
 
-function exportSvg(): string {
-  const svg = styleBarcodeSvg(barcode.value!, { ...colors.value, scale: exportScale.value })
+function exportSvg(target = barcode.value!): string {
+  const svg = styleBarcodeSvg(target, { ...colors.value, scale: exportScale.value })
   const guidance = printGuidance.value
   if (!guidance) return svg
   const unit = printSettings.value.unit
-  return setSvgPrintSize(svg, fromMillimetres(guidance.actualWidthMm, unit), unit)
+  // Each module keeps its printed width, so in a batch a longer code is wider.
+  return setSvgPrintSize(svg, fromMillimetres(guidance.moduleMm * target.width, unit), unit)
 }
 
 async function rasterizeBarcode(
@@ -386,32 +387,56 @@ async function onBatchUpload(event: Event | DragEvent) {
     if (dt?.files?.[0]) file = dt.files[0]
   }
   if (!file) return
-  batchFile.value = file
+  batchResult.value = null
   try {
-    const content = await readCSVFile(file)
-    const parsed = parseCSV(content)
-    if (!parsed.isValid) {
-      batchValidationError.value = t('The CSV file could not be read.')
-      return
-    }
-    const items = processCsvDataForBarcodeBatch(parsed.data)
+    const items = parseBarcodeBatchCsv(await readCSVFile(file))
     if (items.length === 0) {
-      batchValidationError.value = t('No barcode data found in the CSV.')
+      batchValidationError.value = t('No codes found in that file.')
       return
     }
+    batchFile.value = file
     batchItems.value = items
     batchPreviewIndex.value = 0
     batchValidationError.value = null
+    dataBeforeBatch ??= data.value
     data.value = items[0].data
   } catch {
-    batchValidationError.value = t('Error reading CSV file.')
+    batchValidationError.value = t("Couldn't read that file.")
   }
 }
 
 function startNewBatch() {
   batchFile.value = null
   batchItems.value = []
+  batchResult.value = null
+  batchValidationError.value = null
 }
+
+// The single code typed before a batch was loaded, put back on leaving it.
+let dataBeforeBatch: string | null = null
+watch(exportMode, (mode) => {
+  if (mode === ExportMode.Single && dataBeforeBatch !== null) {
+    data.value = dataBeforeBatch
+    dataBeforeBatch = null
+  } else if (mode === ExportMode.Batch && batchItems.value.length > 0) {
+    dataBeforeBatch ??= data.value
+    data.value = batchItems.value[batchPreviewIndex.value].data
+  }
+})
+
+// Rows that can't be made as the chosen type: those its checks catch, listed
+// as soon as the file is read (and again when the type changes), plus any
+// the encoder turned down during the last export.
+const encoderRefusals = ref<{ item: BarcodeBatchItem; problem: string }[]>([])
+const batchProblems = computed(() => [
+  ...batchItems.value.flatMap((item) => {
+    const problem = format.value.check(format.value.prepare(item.data))
+    return problem ? [{ item, problem }] : []
+  }),
+  ...encoderRefusals.value
+])
+watch([batchItems, type], () => (encoderRefusals.value = []))
+const batchResult = ref<string | null>(null)
 
 function setBatchRow(idx: number) {
   if (idx < 0 || idx >= batchItems.value.length) return
@@ -424,26 +449,32 @@ async function generateBatchBarcodes(kind: 'png' | 'jpg' | 'svg' | 'pdf') {
   isExporting.value = true
   isExportingBatch.value = true
   exportError.value = null
+  batchResult.value = null
   try {
     const { default: JSZip } = await import('jszip')
     const zip = new JSZip()
     const usedNames = new Set<string>()
+    const listed = new Set(batchProblems.value.map((p) => p.item))
+    encoderRefusals.value = []
+    let made = 0
 
     for (let i = 0; i < batchItems.value.length; i++) {
       batchExportProgress.value = i + 1
       const item = batchItems.value[i]
       const result = await makeBarcode(item.data, type.value, barcodeOptions.value)
-      if (!result.ok) continue
-
-      let baseName = (item.fileName || item.data).replace(/[^a-zA-Z0-9_-]/g, '_')
-      if (usedNames.has(baseName)) {
-        baseName = `${baseName}_${i + 1}`
+      if (!result.ok) {
+        if (!listed.has(item)) encoderRefusals.value.push({ item, problem: result.error })
+        continue
       }
+      made++
+
+      const base = (item.fileName || item.data).replace(/[^a-zA-Z0-9_-]/g, '_')
+      let baseName = base
+      for (let n = 2; usedNames.has(baseName); n++) baseName = `${base}_${n}`
       usedNames.add(baseName)
 
       if (kind === 'svg') {
-        const svgStr = styleBarcodeSvg(result, { ...colors.value, scale: exportScale.value })
-        zip.file(`${baseName}.svg`, svgStr)
+        zip.file(`${baseName}.svg`, exportSvg(result))
       } else if (kind === 'pdf') {
         const pdfBlob = await exportPdf(result, item.fileName || item.data)
         zip.file(`${baseName}.pdf`, pdfBlob)
@@ -454,8 +485,20 @@ async function generateBatchBarcodes(kind: 'png' | 'jpg' | 'svg' | 'pdf') {
       }
     }
 
+    const total = batchItems.value.length
+    if (made === 0) {
+      exportError.value = t('None of the rows can be made as {type}.', { type: format.value.label })
+      return
+    }
     const zipContent = await zip.generateAsync({ type: 'blob' })
     downloadBlob(zipContent, `${exportName.value}-batch.zip`)
+    batchResult.value =
+      made === total
+        ? t('Made all {total} codes.', { total })
+        : t('Made {made} of {total} codes; the rows listed above were left out.', {
+            made,
+            total
+          })
   } catch (err) {
     console.error('Batch barcode export failed:', err)
     exportError.value = t("Couldn't create the batch ZIP file.")
@@ -557,12 +600,14 @@ async function copyToClipboard() {
           <div class="flex grow items-center gap-2">
             <button
               :class="['secondary-button', { 'opacity-50': exportMode === ExportMode.Single }]"
+              :aria-pressed="exportMode === ExportMode.Single"
               @click="exportMode = ExportMode.Single"
             >
               {{ t('Single export') }}
             </button>
             <button
               :class="['secondary-button', { 'opacity-50': exportMode === ExportMode.Batch }]"
+              :aria-pressed="exportMode === ExportMode.Batch"
               @click="exportMode = ExportMode.Batch"
             >
               {{ t('Batch export') }}
@@ -619,7 +664,11 @@ async function copyToClipboard() {
                 </svg>
                 <p class="text-sm font-medium">{{ t('Upload a CSV file') }}</p>
                 <p class="text-xs text-zinc-500">
-                  {{ t('Columns: data (or code, barcode), optional fileName') }}
+                  {{
+                    t(
+                      'One code per row. A header row is optional: name the columns data and fileName to name each file.'
+                    )
+                  }}
                 </p>
               </div>
             </button>
@@ -650,6 +699,7 @@ async function copyToClipboard() {
                 <button
                   class="secondary-button px-2 py-1 text-xs"
                   :disabled="batchPreviewIndex <= 0"
+                  :aria-label="t('Previous row')"
                   @click="setBatchRow(batchPreviewIndex - 1)"
                 >
                   ←
@@ -660,6 +710,7 @@ async function copyToClipboard() {
                 <button
                   class="secondary-button px-2 py-1 text-xs"
                   :disabled="batchPreviewIndex >= batchItems.length - 1"
+                  :aria-label="t('Next row')"
                   @click="setBatchRow(batchPreviewIndex + 1)"
                 >
                   →
@@ -670,6 +721,34 @@ async function copyToClipboard() {
               >
                 {{ batchItems[batchPreviewIndex]?.data }}
               </code>
+            </div>
+            <p v-if="encodeError" class="text-sm text-red-700 dark:text-red-400">
+              {{ t('This row: {problem}', { problem: encodeError }) }}
+            </p>
+            <div
+              v-if="batchProblems.length"
+              id="barcode-batch-problems"
+              class="text-sm text-amber-700 dark:text-amber-300"
+            >
+              <p>
+                {{
+                  t("{count} of {total} rows can't be made as {type}, so they'll be left out:", {
+                    count: batchProblems.length,
+                    total: batchItems.length,
+                    type: format.label
+                  })
+                }}
+              </p>
+              <ul class="ms-4 list-disc">
+                <li v-for="{ item, problem } in batchProblems.slice(0, 5)" :key="item.row">
+                  {{
+                    t('Row {row} ({data}): {problem}', { row: item.row, data: item.data, problem })
+                  }}
+                </li>
+              </ul>
+              <p v-if="batchProblems.length > 5">
+                {{ t('…and {count} more.', { count: batchProblems.length - 5 }) }}
+              </p>
             </div>
           </div>
           <p
@@ -817,6 +896,7 @@ async function copyToClipboard() {
         </div>
         <p
           v-if="isExportingBatch"
+          role="status"
           class="text-center text-sm font-medium text-cyan-600 dark:text-cyan-400"
         >
           {{
@@ -825,6 +905,14 @@ async function copyToClipboard() {
               total: batchItems.length
             })
           }}
+        </p>
+        <p
+          v-else-if="batchResult && exportMode === ExportMode.Batch"
+          id="barcode-batch-result"
+          role="status"
+          class="text-center text-sm"
+        >
+          {{ batchResult }}
         </p>
         <button
           v-if="isRecentCodesSupported()"
