@@ -14,10 +14,11 @@ visits; that never includes what you type.
 - Text, URLs, email, phone, SMS, Wi-Fi, vCard, location, calendar events,
   EPC (SEPA) payments and GS1 Digital Link product links
 - Other barcodes: Data Matrix, GS1 DataMatrix, Aztec, PDF417, EAN-13, EAN-8,
-  UPC-A, Code 128, GS1-128, ITF-14 and Code 39, with check digits added for
-  you and GS1 data checked
-- Export to PNG, JPG, SVG and plain-text QR codes, or copy to the clipboard
-- Batch export from a CSV file
+  UPC-A, UPC-E, ISBN, Code 128, GS1-128, ITF-14 and Code 39, with check
+  digits added for you and GS1 data checked; bar height for 1D codes
+- Export to PNG, JPG, SVG, PDF and plain-text QR codes, or copy to the
+  clipboard
+- Batch export from a CSV file, for QR codes and barcodes
 - Frames with captions, logos, colours and dot styles; save and load settings
 - Recent codes: the last 20 codes you download, copy or save, kept in your
   browser so you can open them again
@@ -29,7 +30,9 @@ visits; that never includes what you type.
   tracking parameters and stray spaces, with one-click fixes
 - Export at a print size (mm or inches) and DPI, with module-size and
   scanning-distance guidance
+- An optional UTF-8 marker (ECI 26) for text in other alphabets
 - Scan QR codes and barcodes from an image, the clipboard or the camera
+  (with the flashlight and a camera switch where the phone has them)
 - Installs as an offline app
 
 ## Based on Mini QR
@@ -197,32 +200,61 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
   size in modules; a larger Size (QR version) makes room for a bigger logo
   with the same space. Configs saved before load as before, with the default
   space.
-- **Retail formats & barcode controls** (2026-10-09). Added UPC-E and ISBN retail
-  formats with automatic check digits and scanner format detection. 1D barcodes
-  now support custom bar height (modules) and a quiet zones toggle.
-- **PDF prepress & barcode batch exports** (2026-10-09). Added high-DPI PDF export
-  with millimeter media boxes for print workflows (in QR and Barcode modes, single
-  and batch). Barcodes can now also be batch-generated from CSV files.
-- **Scanner torch & camera cycling** (2026-10-09). The camera scanner includes a
-  flashlight/torch toggle for dark environments and cycles across multiple cameras.
-- **UTF-8 ECI 26 compliance** (2026-10-09). Toggle standards-compliant UTF-8 ECI
-  26 headers for international text, fully supported by industrial readers.
-- **Configuration schema versioning** (2026-10-09). Configuration exports and
-  storage now carry `schemaVersion: 1`.
+- **Data templates menu** (2026-10-09). Data templates moved from a button
+  under the data field to a menu next to Preset, showing which template the
+  current data matches, with a button to edit it.
+- **UPC-E, ISBN and bar height** (2026-10-09, fixed in 1.0). UPC-E and ISBN
+  join the barcode types, check digits added or checked as for the others
+  (an ISBN-10 becomes its 978 EAN-13). 1D codes get a bar height (20-150
+  modules, zint's default 50) and an option to leave out the quiet zones,
+  with a note on how much blank space to leave instead; ITF-14 keeps its
+  quiet zones, which sit inside its bearer box.
+- **PDF export** (2026-10-09, fixed in 1.0). Every code downloads as a
+  one-page PDF too, single or batch. The image is stored losslessly (as in
+  a PNG, never JPEG) at its physical size: the print size and DPI when one
+  is set, otherwise the image's size at 96 px per inch, drawn at 300 DPI.
+  Barcodes keep whole pixels per bar. It's an image in a PDF, not vector
+  shapes; SVG stays the vector format.
+- **Barcode batches** (2026-10-09, fixed in 1.0). Barcodes can be batch
+  exported from a CSV too: one code per row, with an optional header row
+  naming the columns (data or code, and fileName). Rows that can't be made
+  as the chosen type are listed, with why, before anything is exported.
+- **Flashlight and camera switch** (2026-10-09). The camera scanner has a
+  flashlight button on phones that allow it, and its switch button steps
+  through every camera, not just front and back.
+- **UTF-8 marker (ECI 26)** (2026-10-09, fixed in 1.0). An option under
+  Size (QR version) marks the text as UTF-8, as the QR standard asks for
+  text beyond plain ASCII; without it readers guess (and phones guess
+  right). The code is then made by zint, which can write the marker, and
+  styled as usual. Off by default: a few older scanners show the marker as
+  extra characters.
+- **Saved-design versions** (2026-10-09). Saved designs and config files
+  carry `schemaVersion: 1`; a file from a newer layout is refused with a
+  message rather than opened wrongly.
+- **1.0 review fixes** (2026-10-09). The UTF-8 marker was built but never
+  drawn or exported; now it is, at the error correction a logo needs, at
+  the chosen size, and it isn't saved in designs. PDFs were JPEGs whose
+  declared size didn't match the image with a print size or a frame
+  (squashing framed codes). ITF-14's bottom bearer bar cut through the bars
+  at other bar heights. ISBNs typed without a check digit failed. Barcode
+  batches read columns by position, dropped the first code of a list with
+  no header and skipped bad rows silently. The camera switch's first press
+  could reopen the same camera. "What is error correction level?" linked
+  to a dynamic-QR company's site; the app explains it itself now.
 
 Ideas under consideration are in [TODO.md](TODO.md).
 
 ## Versioning
 
-Versions look like `0.33.0+b0r3d.3`: the Mini QR release this is built on,
-then b0r3d's own release count on top of it. The `+` is semver's build
-metadata, meaning "0.33.0 with these changes", not a release before or after
-it.
+Versions look like `0.33.0+b0r3d.1.0`: the Mini QR release this is built on,
+then b0r3d's own version. The `+` is semver's build metadata, meaning "0.33.0
+with these changes", not a release before or after it.
 
-- Each release of this site bumps the number after `b0r3d.` in
-  `package.json`.
-- Moving to a newer Mini QR changes the first part and starts the count again
-  at 1, e.g. `0.34.0+b0r3d.1`.
+- Up to `0.33.0+b0r3d.98` the part after `b0r3d.` counted releases. From
+  `0.33.0+b0r3d.1.0` it is b0r3d QR's own version: each release of this site
+  raises it (`b0r3d.1.1`, `b0r3d.1.2`, …) in `package.json`.
+- Moving to a newer Mini QR changes only the first part, e.g.
+  `0.34.0+b0r3d.1.3`.
 
 The footer shows the version and the **build**: the commit the site was built
 from. The build is filled in automatically and is never bumped by hand. The
@@ -240,6 +272,7 @@ footer's Source link goes to this repository.
 | `0.33.0+b0r3d.8` | 2026-10-08 | The build number in the footer is plain text (Source links the code) |
 | `0.33.0+b0r3d.9` | 2026-10-09 | Data templates dropdown menu next to presets                   |
 | `0.33.0+b0r3d.98` | 2026-10-09 | UPC-E, ISBN, bar height/quiet zones, barcode CSV batch, PDF export, camera torch/cycling, ECI 26, schema v1 |
+| `0.33.0+b0r3d.1.0` | 2026-10-09 | 1.0: review fixes (UTF-8 marker, PDF, ITF-14, ISBN, barcode batches, camera switch) |
 
 ## Development
 
