@@ -398,6 +398,11 @@ async function onBatchUpload(event: Event | DragEvent) {
   }
 }
 
+function startNewBatch() {
+  batchFile.value = null
+  batchItems.value = []
+}
+
 function setBatchRow(idx: number) {
   if (idx < 0 || idx >= batchItems.value.length) return
   batchPreviewIndex.value = idx
@@ -629,13 +634,7 @@ async function copyToClipboard() {
               <span class="text-sm font-semibold">
                 {{ t('Batch rows: {count}', { count: batchItems.length }) }}
               </span>
-              <button
-                class="secondary-button text-xs"
-                @click="
-                  batchFile = null
-                  batchItems = []
-                "
-              >
+              <button class="secondary-button text-xs" @click="startNewBatch">
                 {{ t('Start new batch export') }}
               </button>
             </div>
