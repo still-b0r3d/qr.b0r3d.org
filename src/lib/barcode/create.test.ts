@@ -56,6 +56,34 @@ describe('makeBarcode + testReadBarcode', () => {
     expect(noMargin.width).toBeLessThan(withMargin.width)
   })
 
+  it.each(BARCODE_FORMATS.filter((f) => f.linear).map((f) => [f.id] as const))(
+    '%s: reads back at any bar height, with or without quiet zones',
+    async (id) => {
+      const format = barcodeFormat(id)
+      const expected = format.expectedText(format.prepare(format.example))
+      for (const barHeight of [20, 80, 150]) {
+        for (const quietZones of [true, false]) {
+          const result = await makeBarcode(format.example, id, {
+            ...OPTIONS,
+            barHeight,
+            quietZones
+          })
+          expect(result.ok, `${barHeight} ${quietZones}`).toBe(true)
+          if (!result.ok) continue
+          expect(await testReadBarcode(result, id, COLORS), `${barHeight} ${quietZones}`).toBe(
+            expected
+          )
+        }
+      }
+    }
+  )
+
+  it('keeps the quiet zones inside the ITF-14 bearer box', async () => {
+    const on = await makeBarcode('1950600013435', 'itf14', { ...OPTIONS, quietZones: true })
+    const off = await makeBarcode('1950600013435', 'itf14', { ...OPTIONS, quietZones: false })
+    expect(on.ok && off.ok && on.width === off.width).toBe(true)
+  })
+
   it('reads light-on-transparent colours the way they would print', async () => {
     const result = await makeBarcode('B0R3D-128', 'code128', OPTIONS)
     if (!result.ok) throw new Error(result.error)

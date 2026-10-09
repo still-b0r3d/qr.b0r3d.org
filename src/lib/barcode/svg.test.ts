@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { cleanZintSvg, friendlyEncoderError, styleBarcodeSvg, svgDataUrl } from './svg'
+import {
+  cleanZintSvg,
+  friendlyEncoderError,
+  setBarHeight,
+  styleBarcodeSvg,
+  svgDataUrl,
+  type BarcodeSvg
+} from './svg'
 
 // Trimmed from zint's actual output for an EAN-13.
 const ZINT_SVG = `<?xml version="1.0" standalone="no"?>
@@ -77,5 +84,50 @@ describe('friendlyEncoderError', () => {
     expect(
       friendlyEncoderError('Error 719: input length 3200 too long (maximum 3116) (retval: 5)')
     ).toBe('Input length 3200 too long (maximum 3116)')
+  })
+})
+
+describe('setBarHeight', () => {
+  // As zint draws them at the default 50 modules (trimmed).
+  const itf14: BarcodeSvg = {
+    width: 165,
+    height: 69,
+    svg:
+      '<svg width="165" height="69"><g><rect x="0" y="0" width="165" height="69" fill="#FFFFFF"/>' +
+      '<path d="M15 5h1v50h-1ZM19 5h3v50h-3ZM0 0h165v5h-165ZM0 55h165v5h-165ZM0 5h5v50h-5ZM160 5h5v50h-5Z"/>' +
+      '<text x="82.5" y="66.6">19506000134359</text></g></svg>'
+  }
+  const ean13: BarcodeSvg = {
+    width: 113,
+    height: 59,
+    svg:
+      '<svg width="113" height="59"><g><rect x="0" y="0" width="113" height="59" fill="#FFFFFF"/>' +
+      '<path d="M11 0h1v55h-1ZM15 0h2v50h-2ZM19 0h1v50h-1ZM24 0h3v50h-3Z"/>' +
+      '<text x="6.1" y="58.6">9</text></g></svg>'
+  }
+  const path = (b: BarcodeSvg) => /<path d="([^"]+)"/.exec(b.svg)![1]
+
+  it('lengthens the bars, moves the bottom bearer and text, keeps the top bearer', () => {
+    const tall = setBarHeight(itf14, 80)
+    expect(tall.height).toBe(99)
+    expect(tall.svg).toContain('<svg width="165" height="99">')
+    expect(tall.svg).toContain('height="99" fill="#FFFFFF"')
+    expect(path(tall)).toBe(
+      'M15 5h1v80h-1ZM19 5h3v80h-3ZM0 0h165v5h-165ZM0 85h165v5h-165ZM0 5h5v80h-5ZM160 5h5v80h-5Z'
+    )
+    expect(tall.svg).toContain('y="96.6"')
+  })
+
+  it('keeps EAN guard bars their few modules longer', () => {
+    const short = setBarHeight(ean13, 20)
+    expect(short.height).toBe(29)
+    expect(path(short)).toBe('M11 0h1v25h-1ZM15 0h2v20h-2ZM19 0h1v20h-1ZM24 0h3v20h-3Z')
+    expect(short.svg).toContain('y="28.6"')
+  })
+
+  it('leaves the default height, and drawings it does not understand, alone', () => {
+    expect(setBarHeight(ean13, 50)).toBe(ean13)
+    const curved = { ...ean13, svg: ean13.svg.replace('M11 0h1v55h-1Z', 'M11 0c1 1 2 2 3 3Z') }
+    expect(setBarHeight(curved, 80)).toBe(curved)
   })
 })

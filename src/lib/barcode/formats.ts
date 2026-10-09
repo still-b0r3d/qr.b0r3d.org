@@ -47,6 +47,8 @@ export interface BarcodeFormat {
   expectedText: (text: string) => string
   /** Puts what a scanner read into the same form as expectedText. */
   normalizeRead?: (text: string) => string
+  /** The quiet zones are part of the symbol, so they can't be left out. */
+  keepsQuietZones?: boolean
 }
 
 /** GS1 mod-10 check digit for the digits before it (EAN, UPC, ITF-14, GTIN, SSCC, GLN). */
@@ -425,7 +427,9 @@ export const BARCODE_FORMATS: readonly BarcodeFormat[] = [
       },
       13
     ),
-    hint: '13 digits; the check digit is added for you. With it, 14. Used on outer cartons.'
+    hint: '13 digits; the check digit is added for you. With it, 14. Used on outer cartons.',
+    // Its quiet zones sit inside the bearer box; without them it doesn't scan.
+    keepsQuietZones: true
   },
   {
     id: 'code39',

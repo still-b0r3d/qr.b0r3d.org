@@ -45,62 +45,52 @@ export function cleanZintSvg(raw: string): BarcodeSvg {
   return { svg, width, height }
 }
 
+/** zint's bar height for 1D codes, in modules. */
+export const DEFAULT_BAR_HEIGHT = 50
+
+const RECT = /^M([\d.]+) ([\d.]+)h([\d.]+)v([\d.]+)h-[\d.]+Z$/
+
 /**
- * Scales the vertical height of 1D barcode bars from zint's default of 50 modules
- * to targetBarHeight modules, adjusting the SVG viewBox, dimensions, and text baseline.
+ * Makes a 1D code's bars `barHeight` modules tall instead of zint's 50.
+ * zint draws every bar (and ITF-14's bearer bars) as a rectangle in one path.
+ * Whatever reaches the bottom of the bars grows or shrinks by the
+ * difference: the bars, EAN/UPC guard bars (which stay their few modules
+ * longer) and ITF-14's side bearers. Whatever lies below that line moves:
+ * the bottom bearer and the text. The top bearer stays as it is. A drawing
+ * that isn't all rectangles is returned unchanged.
  */
-export function adjust1DBarcodeGeometry(barcode: BarcodeSvg, targetHeight: number): BarcodeSvg {
-  if (!Number.isFinite(targetHeight) || targetHeight === 50 || targetHeight <= 0) {
-    return barcode
-  }
-  const scaleY = targetHeight / 50
-  const delta = targetHeight - 50
-  const newHeight = barcode.height + delta
+export function setBarHeight(barcode: BarcodeSvg, barHeight: number): BarcodeSvg {
+  const delta = Math.round(barHeight) - DEFAULT_BAR_HEIGHT
+  if (!Number.isFinite(delta) || delta === 0) return barcode
+  const path = /(<path\b[^>]*\bd=")([^"]+)(")/.exec(barcode.svg)
+  if (!path) return barcode
+  const rects = path[2].split(/(?=M)/).map((part) => RECT.exec(part))
+  if (rects.some((r) => !r)) return barcode
+  const boxes = rects.map((r) => r!.slice(1).map(Number) as [number, number, number, number])
 
-  let updated = barcode.svg.replace(/<svg\b([^>]*)>/, (match: string) => {
-    let m = match.replace(/height="([\d.]+)"/, () => `height="${newHeight}"`)
-    if (m.includes('viewBox=')) {
-      m = m.replace(/viewBox="([^"]+)"/, (_: string, vb: string) => {
-        const parts = vb.split(' ')
-        if (parts.length === 4) parts[3] = String(Number(parts[3]) + delta)
-        return `viewBox="${parts.join(' ')}"`
-      })
-    }
-    return m
-  })
+  // Where most bars end: the bottom of the bars.
+  const ends = new Map<number, number>()
+  for (const [, y, , h] of boxes) ends.set(y + h, (ends.get(y + h) ?? 0) + 1)
+  const bottom = [...ends].sort((a, b) => b[1] - a[1])[0][0]
+  if (boxes.some(([, y, , h]) => y < bottom && y + h >= bottom && h + delta <= 0)) return barcode
 
-  updated = updated.replace(
-    /<rect\b([^>]*)\bheight="([\d.]+)"([^>]*)>/,
-    (_match: string, pre: string, _h: string, post: string) => {
-      return `<rect${pre}height="${newHeight}"${post}>`
-    }
-  )
-
-  updated = updated.replace(
-    /(<path\b[^>]*\bd=")([^"]+)(")/,
-    (_match: string, pre: string, d: string, post: string) => {
-      const newD = d.replace(/v(\d+)/g, (_: string, v: string) => {
-        const origV = Number(v)
-        const newV = Math.round(origV * scaleY)
-        return `v${newV}`
-      })
-      return `${pre}${newD}${post}`
-    }
-  )
-
-  updated = updated.replace(
-    /(<text\b[^>]*\by=")([\d.]+)(")/g,
-    (_match: string, pre: string, y: string, post: string) => {
-      const newY = (Number(y) + delta).toFixed(2)
-      return `${pre}${newY}${post}`
-    }
-  )
-
-  return {
-    svg: updated,
-    width: barcode.width,
-    height: newHeight
-  }
+  const d = boxes
+    .map(([x, y, w, h]) => {
+      if (y >= bottom) y += delta
+      else if (y + h >= bottom) h += delta
+      return `M${x} ${y}h${w}v${h}h-${w}Z`
+    })
+    .join('')
+  const height = barcode.height + delta
+  const svg = barcode.svg
+    .replace(path[0], `${path[1]}${d}${path[3]}`)
+    .replace(/<svg\b[^>]*>/, (open) => open.replace(/\bheight="[\d.]+"/, `height="${height}"`))
+    // The background.
+    .replace(/(<rect\b[^>]*\bheight=")[\d.]+(")/, `$1${height}$2`)
+    .replace(/(<text\b[^>]*\by=")([\d.]+)(")/g, (_m, pre: string, y: string, post: string) =>
+      Number(y) >= bottom ? `${pre}${+(Number(y) + delta).toFixed(2)}${post}` : _m
+    )
+  return { svg, width: barcode.width, height }
 }
 
 /**

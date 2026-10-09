@@ -12,7 +12,7 @@ import PrintSizeSettings from '@/components/PrintSizeSettings.vue'
 import ScanCheckPanel, { type ScanStatus } from '@/components/ScanCheckPanel.vue'
 import { makeBarcode, testReadBarcode, type BarcodeResult } from '@/lib/barcode/create'
 import { barcodeFormat, type BarcodeType, type CodeType } from '@/lib/barcode/formats'
-import { styleBarcodeSvg, svgDataUrl, type BarcodeSvg } from '@/lib/barcode/svg'
+import { DEFAULT_BAR_HEIGHT, styleBarcodeSvg, svgDataUrl, type BarcodeSvg } from '@/lib/barcode/svg'
 import { rasterizeSvg } from '@/lib/qr-code'
 import { IS_COPY_IMAGE_TO_CLIPBOARD_SUPPORTED } from '@/utils/clipboard'
 import { downloadBlob } from '@/utils/download'
@@ -174,6 +174,20 @@ const isEncoding = ref(true)
 let encodeRun = 0
 let encodeTimer: ReturnType<typeof setTimeout> | undefined
 
+const MIN_BAR_HEIGHT = 20
+const MAX_BAR_HEIGHT = 150
+// What every barcode is made with, previews and batches alike. A bar height
+// being typed is kept in range.
+const barcodeOptions = computed(() => ({
+  showText: settings.value.showText,
+  allowRectangular: settings.value.allowRectangular,
+  barHeight: Math.min(
+    MAX_BAR_HEIGHT,
+    Math.max(MIN_BAR_HEIGHT, Math.round(Number(settings.value.barHeight) || DEFAULT_BAR_HEIGHT))
+  ),
+  quietZones: settings.value.quietZones
+}))
+
 async function encode() {
   const run = ++encodeRun
   const forType = type.value
@@ -181,12 +195,7 @@ async function encode() {
   const text = data.value
   let result: BarcodeResult
   try {
-    result = await makeBarcode(text, forType, {
-      showText: settings.value.showText,
-      allowRectangular: settings.value.allowRectangular,
-      barHeight: settings.value.barHeight,
-      quietZones: settings.value.quietZones
-    })
+    result = await makeBarcode(text, forType, barcodeOptions.value)
   } catch (err) {
     console.error('Barcode encoding failed:', err)
     result = { ok: false, error: t("Couldn't load the barcode maker. Check your connection.") }
@@ -210,14 +219,7 @@ async function encode() {
   }
 }
 watch(
-  () => [
-    data.value,
-    type.value,
-    settings.value.showText,
-    settings.value.allowRectangular,
-    settings.value.barHeight,
-    settings.value.quietZones
-  ],
+  () => [data.value, type.value, ...Object.values(barcodeOptions.value)],
   (_, previous) => {
     clearTimeout(encodeTimer)
     // Typing waits a moment; picking a type or option redraws at once.
@@ -430,12 +432,7 @@ async function generateBatchBarcodes(kind: 'png' | 'jpg' | 'svg' | 'pdf') {
     for (let i = 0; i < batchItems.value.length; i++) {
       batchExportProgress.value = i + 1
       const item = batchItems.value[i]
-      const result = await makeBarcode(item.data, type.value, {
-        showText: settings.value.showText,
-        allowRectangular: settings.value.allowRectangular,
-        barHeight: settings.value.barHeight,
-        quietZones: settings.value.quietZones
-      })
+      const result = await makeBarcode(item.data, type.value, barcodeOptions.value)
       if (!result.ok) continue
 
       let baseName = (item.fileName || item.data).replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -865,10 +862,23 @@ async function copyToClipboard() {
           <input id="barcode-show-text" v-model="settings.showText" type="checkbox" />
           {{ t('Show the text under the bars') }}
         </label>
-        <label class="flex items-center gap-2 !text-base">
-          <input id="barcode-quiet-zones" v-model="settings.quietZones" type="checkbox" />
-          {{ t('Include quiet zones (margins)') }}
-        </label>
+        <div v-if="!format.keepsQuietZones" class="flex flex-col gap-1">
+          <label class="flex items-center gap-2 !text-base">
+            <input id="barcode-quiet-zones" v-model="settings.quietZones" type="checkbox" />
+            {{ t('Include quiet zones (margins)') }}
+          </label>
+          <p
+            v-if="!settings.quietZones"
+            id="barcode-quiet-zones-note"
+            class="text-sm text-amber-700 dark:text-amber-300"
+          >
+            {{
+              t(
+                'Leave blank space on both sides where you place it, about 10 times the thinnest bar: scanners need it to find the code.'
+              )
+            }}
+          </p>
+        </div>
         <div class="flex flex-col gap-1">
           <label for="barcode-height">{{ t('Bar height (modules)') }}</label>
           <div class="flex items-center gap-3">
@@ -876,13 +886,20 @@ async function copyToClipboard() {
               id="barcode-height"
               v-model.number="settings.barHeight"
               type="number"
-              min="20"
-              max="150"
+              :min="MIN_BAR_HEIGHT"
+              :max="MAX_BAR_HEIGHT"
               step="5"
               class="!ms-0 !w-24 text-input"
+              aria-describedby="barcode-height-hint"
             />
-            <span class="text-sm text-zinc-500 dark:text-zinc-400">
-              {{ t('Default: 50 modules') }}
+            <span id="barcode-height-hint" class="text-sm text-zinc-500 dark:text-zinc-400">
+              {{
+                t('{min} to {max}; the default is {default}.', {
+                  min: MIN_BAR_HEIGHT,
+                  max: MAX_BAR_HEIGHT,
+                  default: DEFAULT_BAR_HEIGHT
+                })
+              }}
             </span>
           </div>
         </div>

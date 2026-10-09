@@ -5,9 +5,9 @@
 import { rasterizeSvg } from '@/lib/qr-code'
 import { barcodeFormat, type BarcodeType } from './formats'
 import {
-  adjust1DBarcodeGeometry,
   cleanZintSvg,
   friendlyEncoderError,
+  setBarHeight,
   styleBarcodeSvg,
   type BarcodeSvg
 } from './svg'
@@ -18,9 +18,9 @@ export interface BarcodeOptions {
   showText: boolean
   /** Data Matrix only: allow rectangular sizes (narrower, but fewer scanners read them). */
   allowRectangular: boolean
-  /** Height in modules for 1D barcodes (default 50, typical range 20-150). */
+  /** 1D codes: bar height in modules (zint's default is 50). */
   barHeight?: number
-  /** Include quiet zones (margins) around the barcode (default true). */
+  /** Blank margins around the code (default true; always on for ITF-14). */
   quietZones?: boolean
 }
 
@@ -43,13 +43,13 @@ export async function makeBarcode(
     format: format.writeFormat as never,
     scale: 1,
     addHRT: format.linear && options.showText,
-    addQuietZones: options.quietZones !== false,
+    addQuietZones: options.quietZones !== false || Boolean(format.keepsQuietZones),
     options: flags.join(',')
   })
   if (result.error) return { ok: false, error: friendlyEncoderError(result.error) }
   const cleaned = cleanZintSvg(result.svg)
-  if (format.linear && options.barHeight && options.barHeight !== 50) {
-    return { ok: true, ...adjust1DBarcodeGeometry(cleaned, options.barHeight) }
+  if (format.linear && options.barHeight) {
+    return { ok: true, ...setBarHeight(cleaned, options.barHeight) }
   }
   return { ok: true, ...cleaned }
 }
