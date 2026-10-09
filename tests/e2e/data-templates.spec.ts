@@ -5,11 +5,14 @@ import { test, expect, type Page } from '@playwright/test'
 async function openEditor(page: Page, data?: string) {
   if (data !== undefined) await page.locator('#data').fill(data)
   await page.getByRole('button', { name: 'Open data type generator' }).click()
-  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Data to encode' })).toBeVisible()
 }
 
 async function save(page: Page) {
-  await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click()
+  await page
+    .getByRole('dialog', { name: 'Data to encode' })
+    .getByRole('button', { name: 'Save' })
+    .click()
 }
 
 test.describe('Data templates', () => {
@@ -59,7 +62,7 @@ test.describe('Data templates', () => {
     await page.locator('#epcIban').fill('DE89 3704 0044 0532 0130 01')
     await expect(page.locator('#epcIbanProblem')).toContainText("check digits don't match")
     await save(page)
-    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Data to encode' })).toBeVisible()
     await page.locator('#epcIban').fill('DE89 3704 0044 0532 0130 00')
     await expect(page.locator('#epcIbanProblem')).toHaveCount(0)
     await save(page)
@@ -80,5 +83,27 @@ test.describe('Data templates', () => {
       'https://id.gs1.org/01/09506000134352/10/ABC123'
     )
     await expect(page.locator('#scan-check')).toContainText('Scans.', { timeout: 10000 })
+  })
+
+  test('dropdown menu next to presets opens template dialog and updates label', async ({
+    page
+  }) => {
+    const templateCombobox = page.getByRole('combobox', { name: 'Select data template' })
+    await expect(templateCombobox).toBeVisible()
+
+    await templateCombobox.click()
+    await page.getByRole('option', { name: 'WiFi' }).click()
+
+    const dialog = page.getByRole('dialog', { name: 'Data to encode' })
+    await expect(dialog).toBeVisible()
+    await expect(page.locator('#dataType')).toHaveValue('wifi')
+
+    await page.locator('#wifiEncryption').selectOption('WPA')
+    await page.locator('#wifiSSID').fill('MyOfficeNet')
+    await page.locator('#wifiPassword').fill('secretpass')
+    await save(page)
+
+    await expect(page.locator('#data')).toHaveValue('WIFI:T:WPA;S:MyOfficeNet;P:secretpass;;')
+    await expect(templateCombobox).toContainText('WiFi')
   })
 })

@@ -119,6 +119,7 @@ const formSubmitted = ref(false)
 const props = defineProps<{
   show: boolean
   initialData?: string
+  initialType?: string
 }>()
 
 const emit = defineEmits(['update:data', 'close'])
@@ -127,8 +128,18 @@ watch(
   () => props.show,
   (newValue: boolean) => {
     showModal.value = newValue
-    if (newValue && props.initialData) {
-      detectAndSetDataType(props.initialData)
+    if (newValue) {
+      if (props.initialType) {
+        selectedType.value = props.initialType
+        if (props.initialData) {
+          const detected = detectDataType(props.initialData)
+          if (detected.type === props.initialType) {
+            detectAndSetDataType(props.initialData)
+          }
+        }
+      } else if (props.initialData) {
+        detectAndSetDataType(props.initialData)
+      }
     }
   }
 )

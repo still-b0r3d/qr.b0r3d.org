@@ -226,6 +226,7 @@ footer's Source link goes to this repository.
 | `0.33.0+b0r3d.6` | 2026-10-05 | Fix a blank page after deploys (asset caching)                 |
 | `0.33.0+b0r3d.7` | 2026-10-07 | Recent codes, clear space around centre logos                  |
 | `0.33.0+b0r3d.8` | 2026-10-08 | The build number in the footer is plain text (Source links the code) |
+| `0.33.0+b0r3d.9` | 2026-10-09 | Data templates dropdown menu next to presets                   |
 
 ## Development
 

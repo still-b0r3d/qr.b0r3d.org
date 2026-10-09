@@ -20,6 +20,11 @@ defineProps<{
   items: { value: any; label: string }[]
   insertDividerAtIndexes?: number[]
   buttonLabel: string
+  placeholder?: string
+}>()
+
+const emit = defineEmits<{
+  (e: 'select', value: string): void
 }>()
 </script>
 
@@ -34,7 +39,11 @@ defineProps<{
         class="flex w-fit items-center justify-between gap-2 bg-zinc-50 text-zinc-900 focus-visible:ring-1 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
       >
         <slot name="button-icon"></slot>
-        {{ value ? items.find((item) => item.value === value)?.label : 'Select item...' }}
+        {{
+          (value && items.find((item) => item.value === value)?.label) ||
+          placeholder ||
+          'Select item...'
+        }}
         <ChevronsUpDown class="size-4 shrink-0 opacity-50" />
       </Button>
     </PopoverTrigger>
@@ -50,8 +59,11 @@ defineProps<{
                 class="bg-zinc-50 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
                 @select="
                   (ev) => {
-                    if (typeof ev.detail.value === 'string') {
-                      value = ev.detail.value
+                    const selectedValue =
+                      item.value ?? (typeof ev.detail.value === 'string' ? ev.detail.value : '')
+                    if (typeof selectedValue === 'string') {
+                      value = selectedValue
+                      emit('select', selectedValue)
                     }
                     open = false
                   }

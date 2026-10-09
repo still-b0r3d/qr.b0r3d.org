@@ -27,6 +27,7 @@ import DataChecks from '@/components/DataChecks.vue'
 import PrintSizeSettings from '@/components/PrintSizeSettings.vue'
 import { decodeQrImage, getScanWarnings } from '@/utils/scanCheck'
 import { getDataChecks } from '@/utils/linkChecks'
+import { detectDataType } from '@/utils/dataEncoding'
 import { storageGet, storageSet } from '@/utils/safeStorage'
 import { MAX_BACKGROUND_SIDE, MAX_LOGO_SIDE, readImageFile } from '@/utils/imageUpload'
 import { fetchRemoteLogo, resolveLocalLogo, type LogoResult } from '@/utils/logoImage'
@@ -1662,19 +1663,71 @@ watch(isExportingBatchQRs, (exporting) => {
 onUnmounted(() => clearTimeout(scanTimer))
 //#endregion
 
-//#region /* Data modal */
+//#region /* Data modal & templates */
 const isDataModalVisible = ref(false)
-const openDataModal = () => {
+const isDataTemplateSelectOpen = ref(false)
+const selectedDataTemplateKey = ref<string>('')
+const modalInitialType = ref<string>('text')
+
+const dataTemplateOptions = computed(() => [
+  { value: 'text', label: t('Text') },
+  { value: 'url', label: t('URL') },
+  { value: 'wifi', label: t('WiFi') },
+  { value: 'vcard', label: t('vCard') },
+  { value: 'email', label: t('Email') },
+  { value: 'phone', label: t('Phone') },
+  { value: 'sms', label: t('SMS') },
+  { value: 'location', label: t('Location') },
+  { value: 'event', label: t('Event') },
+  { value: 'epc', label: t('EPC QR (SEPA Payment)') },
+  { value: 'gs1dl', label: t('Product (GS1 Digital Link)') }
+])
+
+watch(
+  data,
+  (newData) => {
+    if (!newData || !newData.trim()) {
+      selectedDataTemplateKey.value = ''
+    } else {
+      const detected = detectDataType(newData)
+      selectedDataTemplateKey.value = detected.type
+    }
+  },
+  { immediate: true }
+)
+
+const openDataModal = (type?: string) => {
+  if (type) {
+    modalInitialType.value = type
+  } else if (selectedDataTemplateKey.value) {
+    modalInitialType.value = selectedDataTemplateKey.value
+  } else {
+    modalInitialType.value = 'text'
+  }
   isDataModalVisible.value = true
+}
+
+const onSelectDataTemplate = (type: string) => {
+  selectedDataTemplateKey.value = type
+  openDataModal(type)
 }
 
 const closeDataModal = () => {
   isDataModalVisible.value = false
+  if (!data.value || !data.value.trim()) {
+    selectedDataTemplateKey.value = ''
+  } else {
+    selectedDataTemplateKey.value = detectDataType(data.value).type
+  }
 }
 
 const updateDataFromModal = (newData: string) => {
   data.value = newData
-  // Optionally trigger QR code regeneration here if needed
+  if (newData && newData.trim()) {
+    selectedDataTemplateKey.value = detectDataType(newData).type
+  } else {
+    selectedDataTemplateKey.value = ''
+  }
 }
 // #endregion
 </script>
@@ -2580,33 +2633,73 @@ const updateDataFromModal = (newData: string) => {
           >
           <AccordionContent class="px-2 pb-8 pt-4">
             <section class="w-full space-y-4" aria-labelledby="qr-code-settings-title">
-              <div class="field-reveal" v-show="isFieldVisible('preset')">
-                <label>{{ t('Preset') }}</label>
-                <div class="flex flex-row items-center justify-start gap-2">
-                  <Combobox
-                    :items="allPresetOptions"
-                    v-model:value="selectedPresetKey"
-                    v-model:open="isPresetSelectOpen"
-                    :button-label="t('Select QR code preset')"
-                    :insert-divider-at-indexes="[0]"
-                  />
-                  <button
-                    class="button grid size-10 place-items-center"
-                    @click="randomizeStyleSettings"
-                    :aria-label="t('Randomize style')"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24"
-                      height="24"
-                      viewBox="0 0 640 512"
+              <div class="flex flex-wrap items-start gap-4 sm:gap-6">
+                <!-- Preset -->
+                <div class="field-reveal flex flex-col gap-1" v-show="isFieldVisible('preset')">
+                  <label>{{ t('Preset') }}</label>
+                  <div class="flex flex-row items-center justify-start gap-2">
+                    <Combobox
+                      :items="allPresetOptions"
+                      v-model:value="selectedPresetKey"
+                      v-model:open="isPresetSelectOpen"
+                      :button-label="t('Select QR code preset')"
+                      :insert-divider-at-indexes="[0]"
+                    />
+                    <button
+                      class="button grid size-10 place-items-center"
+                      @click="randomizeStyleSettings"
+                      :aria-label="t('Randomize style')"
                     >
-                      <path
-                        fill="#888888"
-                        d="M274.9 34.3c-28.1-28.1-73.7-28.1-101.8 0L34.3 173.1c-28.1 28.1-28.1 73.7 0 101.8l138.8 138.8c28.1 28.1 73.7 28.1 101.8 0l138.8-138.8c28.1-28.1 28.1-73.7 0-101.8L274.9 34.3zM200 224a24 24 0 1 1 48 0a24 24 0 1 1-48 0zM96 200a24 24 0 1 1 0 48a24 24 0 1 1 0-48zm128 176a24 24 0 1 1 0-48a24 24 0 1 1 0 48zm128-176a24 24 0 1 1 0 48a24 24 0 1 1 0-48zm-128-80a24 24 0 1 1 0-48a24 24 0 1 1 0 48zm96 328c0 35.3 28.7 64 64 64h192c35.3 0 64-28.7 64-64V256c0-35.3-28.7-64-64-64H461.7c11.6 36 3.1 77-25.4 105.5L320 413.8V448zm160-120a24 24 0 1 1 0 48a24 24 0 1 1 0-48z"
-                      />
-                    </svg>
-                  </button>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 640 512"
+                      >
+                        <path
+                          fill="#888888"
+                          d="M274.9 34.3c-28.1-28.1-73.7-28.1-101.8 0L34.3 173.1c-28.1 28.1-28.1 73.7 0 101.8l138.8 138.8c28.1 28.1 73.7 28.1 101.8 0l138.8-138.8c28.1-28.1 28.1-73.7 0-101.8L274.9 34.3zM200 224a24 24 0 1 1 48 0a24 24 0 1 1-48 0zM96 200a24 24 0 1 1 0 48a24 24 0 1 1 0-48zm128 176a24 24 0 1 1 0-48a24 24 0 1 1 0 48zm128-176a24 24 0 1 1 0 48a24 24 0 1 1 0-48zm-128-80a24 24 0 1 1 0-48a24 24 0 1 1 0 48zm96 328c0 35.3 28.7 64 64 64h192c35.3 0 64-28.7 64-64V256c0-35.3-28.7-64-64-64H461.7c11.6 36 3.1 77-25.4 105.5L320 413.8V448zm160-120a24 24 0 1 1 0 48a24 24 0 1 1 0-48z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Data templates -->
+                <div class="field-reveal flex flex-col gap-1">
+                  <label>{{ t('Data templates') }}</label>
+                  <div class="flex flex-row items-center justify-start gap-2">
+                    <Combobox
+                      :items="dataTemplateOptions"
+                      v-model:value="selectedDataTemplateKey"
+                      v-model:open="isDataTemplateSelectOpen"
+                      :button-label="t('Select data template')"
+                      :placeholder="t('Select template...')"
+                      @select="onSelectDataTemplate"
+                    />
+                    <button
+                      class="button grid size-10 place-items-center"
+                      @click="openDataModal(selectedDataTemplateKey)"
+                      :aria-label="t('Open data type generator')"
+                      :title="t('Edit data template')"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          fill="none"
+                          stroke="#888888"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
               <div class="w-full">
@@ -2659,31 +2752,6 @@ const updateDataFromModal = (newData: string) => {
                         :checks="dataChecks"
                         @apply="(fixed: string) => (data = fixed)"
                       />
-                      <button
-                        @click="openDataModal"
-                        aria-haspopup="dialog"
-                        :aria-expanded="isDataModalVisible"
-                        class="secondary-button mt-2 flex items-center gap-1 self-end"
-                        :aria-label="t('Open data type generator')"
-                      >
-                        <span>{{ t('Data templates') }}</span>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                        >
-                          <!-- Icon from Tabler Icons by Paweł Kuna - https://github.com/tabler/tabler-icons/blob/master/LICENSE -->
-                          <path
-                            fill="none"
-                            stroke="#888888"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="m7 7l5 5l-5 5m6-10l5 5l-5 5"
-                          />
-                        </svg>
-                      </button>
                     </div>
                     <template v-if="exportMode === ExportMode.Batch">
                       <template v-if="!inputFileForBatchEncoding">
@@ -3261,6 +3329,7 @@ const updateDataFromModal = (newData: string) => {
   <DataTemplatesModal
     :show="isDataModalVisible"
     :initial-data="data"
+    :initial-type="modalInitialType"
     @close="closeDataModal"
     @update:data="updateDataFromModal"
   />
