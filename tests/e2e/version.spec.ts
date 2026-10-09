@@ -29,6 +29,6 @@ test('the footer links the source and license (GPL)', async ({ page }) => {
   )
 })
 
-test('the version follows <version>+b0r3d.<n>', () => {
-  expect(version).toMatch(/^\d+\.\d+\.\d+(\+b0r3d\.[1-9]\d*)?$/)
+test('the version follows <Mini QR version>+b0r3d.<n>', () => {
+  expect(version).toMatch(/^\d+\.\d+\.\d+\+b0r3d\.[1-9]\d*$/)
 })

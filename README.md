@@ -214,14 +214,15 @@ Ideas under consideration are in [TODO.md](TODO.md).
 
 ## Versioning
 
-Versions look like `0.98.0+b0r3d.1`: the core release version,
+Versions look like `0.33.0+b0r3d.3`: the Mini QR release this is built on,
 then b0r3d's own release count on top of it. The `+` is semver's build
-metadata, meaning "this version with these changes", not a release before or after
+metadata, meaning "0.33.0 with these changes", not a release before or after
 it.
 
 - Each release of this site bumps the number after `b0r3d.` in
   `package.json`.
-- Major milestone releases update the primary semver version.
+- Moving to a newer Mini QR changes the first part and starts the count again
+  at 1, e.g. `0.34.0+b0r3d.1`.
 
 The footer shows the version and the **build**: the commit the site was built
 from. The build is filled in automatically and is never bumped by hand. The
@@ -238,7 +239,7 @@ footer's Source link goes to this repository.
 | `0.33.0+b0r3d.7` | 2026-10-07 | Recent codes, clear space around centre logos                  |
 | `0.33.0+b0r3d.8` | 2026-10-08 | The build number in the footer is plain text (Source links the code) |
 | `0.33.0+b0r3d.9` | 2026-10-09 | Data templates dropdown menu next to presets                   |
-| `0.98.0+b0r3d.1` | 2026-10-09 | UPC-E, ISBN, bar height/quiet zones, barcode CSV batch, PDF export, camera torch/cycling, ECI 26, schema v1 |
+| `0.33.0+b0r3d.98` | 2026-10-09 | UPC-E, ISBN, bar height/quiet zones, barcode CSV batch, PDF export, camera torch/cycling, ECI 26, schema v1 |
 
 ## Development
 
