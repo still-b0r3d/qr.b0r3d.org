@@ -1,95 +1,135 @@
 /**
- * Direct PDF generator for vector and high-DPI print exports.
- * Generates ISO 32000-1 (PDF-1.4) compliant documents in the browser
- * with zero external dependencies.
+ * A one-page PDF (1.4) holding one image at a physical size, written by hand
+ * so no PDF library ships with the app. The pixels are stored losslessly
+ * (Flate, as in PNG), never as JPEG, so module and bar edges stay sharp; any
+ * transparency is kept as a soft mask.
  */
 
-export interface PdfDocumentOptions {
-  /** Page width in millimetres. */
+export interface PdfImageOptions {
+  /** Page (and image) width in millimetres. */
   widthMm: number
-  /** Page height in millimetres. */
+  /** Page (and image) height in millimetres. */
   heightMm: number
-  /** Binary JPEG bytes. */
-  jpegBytes: Uint8Array
-  /** Image dimensions in pixels. */
-  imageWidthPx: number
-  imageHeightPx: number
-  /** Title metadata. */
+  /** RGBA pixels, row by row from the top, as ImageData holds them. */
+  pixels: Uint8ClampedArray
+  /** Image size in pixels. */
+  width: number
+  height: number
+  /** Document title (shown by PDF viewers). */
   title?: string
 }
 
-export function createPdfBlob(options: PdfDocumentOptions): Blob {
-  const { widthMm, heightMm, jpegBytes, imageWidthPx, imageHeightPx, title } = options
-  const MM_TO_PT = 72 / 25.4
-  const widthPt = +(widthMm * MM_TO_PT).toFixed(2)
-  const heightPt = +(heightMm * MM_TO_PT).toFixed(2)
+const PT_PER_MM = 72 / 25.4
 
-  // Content stream: paint image onto full page
-  const contentStream = `q\n${widthPt} 0 0 ${heightPt} 0 0 cm\n/Im1 Do\nQ\n`
+/** zlib-compressed bytes (what /FlateDecode expects), or null without CompressionStream. */
+async function deflate(bytes: Uint8Array): Promise<Uint8Array | null> {
+  if (typeof CompressionStream === 'undefined') return null
+  const stream = new Blob([bytes as BlobPart])
+    .stream()
+    .pipeThrough(new CompressionStream('deflate'))
+  return new Uint8Array(await new Response(stream).arrayBuffer())
+}
+
+/** A PDF text string: plain when printable ASCII, else UTF-16BE with a BOM. */
+function pdfString(text: string): string {
+  if (/^[\x20-\x7e]*$/.test(text)) return `(${text.replace(/[\\()]/g, '\\$&')})`
+  let hex = 'FEFF'
+  for (let i = 0; i < text.length; i++) hex += text.charCodeAt(i).toString(16).padStart(4, '0')
+  return `<${hex.toUpperCase()}>`
+}
+
+const pt = (mm: number) => +(mm * PT_PER_MM).toFixed(2)
+
+export async function createPdfBlob(options: PdfImageOptions): Promise<Blob> {
+  const { widthMm, heightMm, pixels, width, height, title } = options
+  if (pixels.length !== width * height * 4) {
+    throw new Error(`Expected ${width * height * 4} RGBA bytes, got ${pixels.length}`)
+  }
+
+  const rgb = new Uint8Array(width * height * 3)
+  const alpha = new Uint8Array(width * height)
+  let transparent = false
+  for (let i = 0, j = 0; i < width * height; i++, j += 4) {
+    rgb[i * 3] = pixels[j]
+    rgb[i * 3 + 1] = pixels[j + 1]
+    rgb[i * 3 + 2] = pixels[j + 2]
+    alpha[i] = pixels[j + 3]
+    if (pixels[j + 3] !== 255) transparent = true
+  }
+
   const encoder = new TextEncoder()
-  const contentBytes = encoder.encode(contentStream)
+  const objects: Uint8Array[][] = []
+  const add = (...parts: (string | Uint8Array)[]) => {
+    objects.push(parts.map((p) => (typeof p === 'string' ? encoder.encode(p) : p)))
+    return objects.length
+  }
+  const imageStream = async (data: Uint8Array, dict: string) => {
+    const packed = await deflate(data)
+    const filter = packed ? ' /Filter /FlateDecode' : ''
+    const body = packed ?? data
+    return add(`<< ${dict}${filter} /Length ${body.length} >>\nstream\n`, body, '\nendstream')
+  }
 
-  const objects: Uint8Array[] = []
-
-  // 1: Catalog
-  objects.push(encoder.encode(`1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n`))
-
-  // 2: Pages
-  objects.push(encoder.encode(`2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n`))
-
-  // 3: Page
-  objects.push(
-    encoder.encode(
-      `3 0 obj\n<<\n  /Type /Page\n  /Parent 2 0 R\n  /MediaBox [0 0 ${widthPt} ${heightPt}]\n  /Contents 4 0 R\n  /Resources <<\n    /XObject << /Im1 5 0 R >>\n  >>\n>>\nendobj\n`
-    )
+  const widthPt = pt(widthMm)
+  const heightPt = pt(heightMm)
+  const imageDict = `/Type /XObject /Subtype /Image /Width ${width} /Height ${height} /BitsPerComponent 8`
+  const mask = transparent ? await imageStream(alpha, `${imageDict} /ColorSpace /DeviceGray`) : 0
+  const image = await imageStream(
+    rgb,
+    `${imageDict} /ColorSpace /DeviceRGB${mask ? ` /SMask ${mask} 0 R` : ''}`
   )
-
-  // 4: Contents stream
-  const obj4Header = encoder.encode(`4 0 obj\n<< /Length ${contentBytes.length} >>\nstream\n`)
-  const obj4Footer = encoder.encode(`\nendstream\nendobj\n`)
-  const obj4 = new Uint8Array(obj4Header.length + contentBytes.length + obj4Footer.length)
-  obj4.set(obj4Header)
-  obj4.set(contentBytes, obj4Header.length)
-  obj4.set(obj4Footer, obj4Header.length + contentBytes.length)
-  objects.push(obj4)
-
-  // 5: Image XObject with /DCTDecode (JPEG)
-  const obj5Header = encoder.encode(
-    `5 0 obj\n<<\n  /Type /XObject\n  /Subtype /Image\n  /Width ${imageWidthPx}\n  /Height ${imageHeightPx}\n  /ColorSpace /DeviceRGB\n  /BitsPerComponent 8\n  /Filter /DCTDecode\n  /Length ${jpegBytes.length}\n>>\nstream\n`
+  const drawing = `q ${widthPt} 0 0 ${heightPt} 0 0 cm /Im1 Do Q`
+  const contents = add(`<< /Length ${drawing.length} >>\nstream\n${drawing}\nendstream`)
+  // The page tree refers forward to the page, which refers back to it.
+  const pages = objects.length + 1
+  const page = pages + 1
+  add(`<< /Type /Pages /Kids [${page} 0 R] /Count 1 >>`)
+  add(
+    `<< /Type /Page /Parent ${pages} 0 R /MediaBox [0 0 ${widthPt} ${heightPt}] ` +
+      `/Resources << /XObject << /Im1 ${image} 0 R >> >> /Contents ${contents} 0 R >>`
   )
-  const obj5Footer = encoder.encode(`\nendstream\nendobj\n`)
-  const obj5 = new Uint8Array(obj5Header.length + jpegBytes.length + obj5Footer.length)
-  obj5.set(obj5Header)
-  obj5.set(jpegBytes, obj5Header.length)
-  obj5.set(obj5Footer, obj5Header.length + jpegBytes.length)
-  objects.push(obj5)
+  const catalog = add(`<< /Type /Catalog /Pages ${pages} 0 R >>`)
+  const info = add(`<< /Producer (b0r3d QR)${title ? ` /Title ${pdfString(title)}` : ''} >>`)
 
-  // Optional 6: Info dict if title given
-  let infoRef = ''
-  if (title) {
-    const escapedTitle = title.replace(/[()\\]/g, '\\$&')
-    objects.push(
-      encoder.encode(`6 0 obj\n<< /Title (${escapedTitle}) /Producer (b0r3d QR) >>\nendobj\n`)
-    )
-    infoRef = ' /Info 6 0 R'
+  // Header (with a binary comment so tools treat the file as binary),
+  // numbered objects, then the cross-reference table pointing at each one.
+  const parts: Uint8Array[] = [encoder.encode('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n')]
+  let offset = parts[0].length
+  const offsets: number[] = []
+  objects.forEach((objectParts, i) => {
+    offsets.push(offset)
+    const wrapped = [
+      encoder.encode(`${i + 1} 0 obj\n`),
+      ...objectParts,
+      encoder.encode('\nendobj\n')
+    ]
+    for (const part of wrapped) offset += part.length
+    parts.push(...wrapped)
+  })
+  const xref =
+    `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n` +
+    offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('') +
+    `trailer\n<< /Size ${objects.length + 1} /Root ${catalog} 0 R /Info ${info} 0 R >>\n` +
+    `startxref\n${offset}\n%%EOF\n`
+  parts.push(encoder.encode(xref))
+  return new Blob(parts as BlobPart[], { type: 'application/pdf' })
+}
+
+/** The RGBA pixels of an image file (a PNG export, say). */
+export async function imagePixels(
+  image: Blob
+): Promise<{ pixels: Uint8ClampedArray; width: number; height: number }> {
+  const bitmap = await createImageBitmap(image)
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = bitmap.width
+    canvas.height = bitmap.height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('No 2D canvas')
+    ctx.drawImage(bitmap, 0, 0)
+    const { data } = ctx.getImageData(0, 0, bitmap.width, bitmap.height)
+    return { pixels: data, width: bitmap.width, height: bitmap.height }
+  } finally {
+    bitmap.close()
   }
-
-  const header = encoder.encode('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n')
-  const offsets = [0]
-  let currentOffset = header.length
-
-  for (let i = 0; i < objects.length; i++) {
-    offsets.push(currentOffset)
-    currentOffset += objects[i].length
-  }
-
-  const startxref = currentOffset
-  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
-  for (let i = 1; i <= objects.length; i++) {
-    xref += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`
-  }
-  xref += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R${infoRef} >>\nstartxref\n${startxref}\n%%EOF\n`
-  const xrefBytes = encoder.encode(xref)
-
-  return new Blob([header, ...objects, xrefBytes] as BlobPart[], { type: 'application/pdf' })
 }

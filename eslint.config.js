@@ -81,6 +81,7 @@ export default [
         MediaTrackConstraints: 'readonly',
         MediaTrackCapabilities: 'readonly',
         BlobPart: 'readonly',
+        CompressionStream: 'readonly',
         CanvasRenderingContext2D: 'readonly',
         ClipboardItem: 'readonly',
         CSS: 'readonly',

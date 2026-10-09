@@ -1,11 +1,13 @@
 import { IS_COPY_IMAGE_TO_CLIPBOARD_SUPPORTED } from '@/utils/clipboard'
 import { downloadBlob } from '@/utils/download'
 import { buildSvgExportString, rasterizeSvg, type SvgExportInput } from '@/lib/qr-code'
+import { createPdfBlob, imagePixels } from '@/utils/pdf'
 import {
   printWidthPx,
   setJpegDpi,
   setPngDpi,
   setSvgPrintSize,
+  toMillimetres,
   type PrintUnit
 } from '@/utils/printSize'
 
@@ -164,6 +166,58 @@ export async function downloadJpgElement(
     return true
   } catch (error) {
     console.error('Error generating JPG export:', error)
+    return false
+  }
+}
+
+/* ---------- PDF ---------- */
+
+/** CSS pixels per inch: the page size of a PDF made without a print size. */
+const SCREEN_DPI = 96
+/** Drawn at this DPI without a print size, so the PDF prints sharply... */
+const PDF_DPI = 300
+/** ...unless that would be wider than this many pixels. */
+const MAX_PDF_PIXELS = 4096
+
+/**
+ * The PNG export, losslessly, on a page of its physical size: the print size
+ * when one is set (frame included, at its DPI), otherwise the image's size at
+ * 96 px per inch, drawn at up to 300 DPI.
+ */
+export async function getPdfBlob(input: ImageExportInput, title?: string): Promise<Blob> {
+  let print = input.print
+  if (!print) {
+    const { width } = pickTargetSize(input, buildSvgExportString(input))
+    const inches = width / SCREEN_DPI
+    print = {
+      width: inches * 25.4,
+      unit: 'mm',
+      dpi: Math.max(1, Math.min(PDF_DPI, Math.floor(MAX_PDF_PIXELS / inches)))
+    }
+  }
+  const png = await rasterizeFromInput({ ...input, print }, 'image/png')
+  const image = await imagePixels(png)
+  const widthMm = toMillimetres(print.width, print.unit)
+  // The height follows the image as drawn, never the preview's proportions.
+  return createPdfBlob({
+    ...image,
+    widthMm,
+    heightMm: (widthMm * image.height) / image.width,
+    title
+  })
+}
+
+/** Resolves to whether the file was made and handed to the browser. */
+export async function downloadPdfElement(
+  input: ImageExportInput,
+  filename: string,
+  title?: string
+): Promise<boolean> {
+  try {
+    downloadBlob(await getPdfBlob(input, title), filename)
+    return true
+  } catch (error) {
+    console.error('Error generating PDF export:', error)
     return false
   }
 }

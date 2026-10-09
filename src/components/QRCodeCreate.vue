@@ -35,7 +35,6 @@ import {
   checkPrintSettings,
   DEFAULT_PRINT_SETTINGS,
   printGuidance,
-  toMillimetres,
   type PrintSettings
 } from '@/utils/printSize'
 import { IS_COPY_IMAGE_TO_CLIPBOARD_SUPPORTED } from '@/utils/clipboard'
@@ -43,10 +42,12 @@ import { createRandomColor, getRandomItemInArray } from '@/utils/color'
 import {
   copyImageToClipboard,
   downloadJpgElement,
+  downloadPdfElement,
   downloadPngElement,
   downloadSvgElement,
   getInlinedSvgString,
   getJpgElement,
+  getPdfBlob,
   getPngBlob,
   getPngElement,
   getThumbnailDataUrl
@@ -122,7 +123,6 @@ import {
 import { newRecentQrCode } from '@/utils/recentCodes'
 import { isRecentCodesSupported } from '@/utils/recentCodesDb'
 import { recentCodesState, recordRecentCode } from '@/utils/useRecentCodes'
-import { createPdfBlob } from '@/utils/pdf'
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import 'vue-i18n'
 import { useI18n } from 'vue-i18n'
@@ -1045,38 +1045,6 @@ async function copyQRToClipboard() {
   }
 }
 
-async function downloadPdfQR(filename: string): Promise<boolean> {
-  try {
-    const input = buildImageExportInput()
-    const jpgDataUrl = await getJpgElement(input)
-    const base64 = jpgDataUrl.split(',')[1]
-    const binary = atob(base64)
-    const jpegBytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) jpegBytes[i] = binary.charCodeAt(i)
-
-    const dims = input.targetSize
-    const guidance = printInfo.value
-    const widthMm = guidance
-      ? toMillimetres(printSettings.value.width, printSettings.value.unit)
-      : (dims.width * 25.4) / 72
-    const heightMm = guidance ? (widthMm * dims.height) / dims.width : (dims.height * 25.4) / 72
-
-    const pdfBlob = createPdfBlob({
-      widthMm,
-      heightMm,
-      jpegBytes,
-      imageWidthPx: dims.width,
-      imageHeightPx: dims.height,
-      title: exportFilename.value || 'QR Code'
-    })
-    downloadBlob(pdfBlob, filename)
-    return true
-  } catch (err) {
-    console.error('Failed to export PDF:', err)
-    return false
-  }
-}
-
 /**
  * Downloads QR code in specified format, handling both single and batch exports
  * @param format The format to download: 'png', 'svg', 'jpg', or 'pdf'
@@ -1094,7 +1062,11 @@ async function downloadQRImage(format: 'png' | 'svg' | 'jpg' | 'pdf') {
     } else if (format === 'png') {
       ok = await downloadPngElement(buildImageExportInput(), `${sanitizedFilename}.png`)
     } else if (format === 'pdf') {
-      ok = await downloadPdfQR(`${sanitizedFilename}.pdf`)
+      ok = await downloadPdfElement(
+        buildImageExportInput(),
+        `${sanitizedFilename}.pdf`,
+        exportFilename.value || 'QR code'
+      )
     } else {
       ok = await downloadJpgElement(buildImageExportInput(), `${sanitizedFilename}.jpg`)
     }
@@ -1665,28 +1637,10 @@ async function generateBatchQRCodes(format: 'png' | 'svg' | 'jpg' | 'pdf') {
       } else if (format === 'jpg') {
         payload = await getJpgElement(buildImageExportInput())
       } else if (format === 'pdf') {
-        const input = buildImageExportInput()
-        const jpgDataUrl = await getJpgElement(input)
-        const base64 = jpgDataUrl.split(',')[1]
-        const binary = atob(base64)
-        const jpegBytes = new Uint8Array(binary.length)
-        for (let i = 0; i < binary.length; i++) jpegBytes[i] = binary.charCodeAt(i)
-
-        const dims = input.targetSize
-        const guidance = printInfo.value
-        const widthMm = guidance
-          ? toMillimetres(printSettings.value.width, printSettings.value.unit)
-          : (dims.width * 25.4) / 72
-        const heightMm = guidance ? (widthMm * dims.height) / dims.width : (dims.height * 25.4) / 72
-
-        payload = createPdfBlob({
-          widthMm,
-          heightMm,
-          jpegBytes,
-          imageWidthPx: dims.width,
-          imageHeightPx: dims.height,
-          title: fileNamesFromCsv.value[index] || `QR Code ${index + 1}`
-        })
+        payload = await getPdfBlob(
+          buildImageExportInput(),
+          fileNamesFromCsv.value[index] || `QR code ${index + 1}`
+        )
       } else {
         payload = await getInlinedSvgString(buildSvgExportInput())
       }

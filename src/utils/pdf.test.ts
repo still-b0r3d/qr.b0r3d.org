@@ -1,41 +1,114 @@
 import { describe, expect, it } from 'vitest'
+import { Buffer } from 'node:buffer'
+import { inflateSync } from 'node:zlib'
 import { createPdfBlob } from './pdf'
 
+/** A w×h RGBA image: a black pixel at the top left, the rest `fill`. */
+function image(width: number, height: number, fill: [number, number, number, number]) {
+  const pixels = new Uint8ClampedArray(width * height * 4)
+  for (let i = 0; i < width * height; i++) pixels.set(i === 0 ? [0, 0, 0, 255] : fill, i * 4)
+  return { pixels, width, height }
+}
+
+async function parse(blob: Blob) {
+  const bytes = Buffer.from(await blob.arrayBuffer())
+  const text = bytes.toString('latin1')
+  // Each object's dictionary and, if it has one, its stream bytes.
+  const objects = new Map<number, { dict: string; stream?: Buffer }>()
+  for (const m of text.matchAll(/(\d+) 0 obj\n/g)) {
+    const start = m.index! + m[0].length
+    const end = text.indexOf('\nendobj', start)
+    const body = text.slice(start, end)
+    const streamAt = body.indexOf('stream\n')
+    const dict = streamAt >= 0 ? body.slice(0, streamAt) : body
+    const length = Number(/\/Length (\d+)/.exec(dict)?.[1])
+    const stream =
+      streamAt >= 0
+        ? bytes.subarray(start + streamAt + 7, start + streamAt + 7 + length)
+        : undefined
+    objects.set(Number(m[1]), { dict, stream })
+  }
+  const xrefAt = Number(/startxref\n(\d+)/.exec(text)![1])
+  const offsets = [...text.slice(xrefAt).matchAll(/^(\d{10}) 00000 n $/gm)].map((m) => Number(m[1]))
+  return { text, objects, xrefAt, offsets }
+}
+
+const imageObject = (objects: Map<number, { dict: string; stream?: Buffer }>, space: string) =>
+  [...objects.values()].find((o) => o.dict.includes('/Subtype /Image') && o.dict.includes(space))
+
 describe('createPdfBlob', () => {
-  it('generates a valid PDF-1.4 file with correct structure and header', async () => {
-    // 1x1 white JPEG dummy byte sequence
-    const dummyJpeg = new Uint8Array([
-      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00,
-      0x48, 0x00, 0x48, 0x00, 0x00, 0xff, 0xdb, 0x00, 0x43, 0x00, 0x08, 0x06, 0x06, 0x07, 0x06,
-      0x05, 0x08, 0x07, 0x07, 0x07, 0x09, 0x09, 0x08, 0x0a, 0x0c, 0x14, 0x0d, 0x0c, 0x0b, 0x0b,
-      0x0c, 0x19, 0x12, 0x13, 0x0f, 0x14, 0x1d, 0x1a, 0x1f, 0x1e, 0x1d, 0x1a, 0x1c, 0x1c, 0x20,
-      0x24, 0x2e, 0x27, 0x20, 0x22, 0x2c, 0x23, 0x1c, 0x1c, 0x28, 0x37, 0x29, 0x2c, 0x30, 0x31,
-      0x34, 0x34, 0x34, 0x1f, 0x27, 0x39, 0x3d, 0x38, 0x32, 0x3c, 0x2e, 0x33, 0x34, 0x32, 0xff,
-      0xc0, 0x00, 0x0b, 0x08, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0xff, 0xc4, 0x00,
-      0x1f, 0x00, 0x00, 0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
-      0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00, 0x7f, 0x00, 0xff, 0xd9
-    ])
-
-    const blob = createPdfBlob({
+  it('is a valid PDF whose cross-reference table points at every object', async () => {
+    const blob = await createPdfBlob({
+      ...image(3, 2, [255, 255, 255, 255]),
       widthMm: 40,
-      heightMm: 40,
-      jpegBytes: dummyJpeg,
-      imageWidthPx: 1,
-      imageHeightPx: 1,
-      title: 'Test Barcode'
+      heightMm: 20
     })
-
     expect(blob.type).toBe('application/pdf')
-    expect(blob.size).toBeGreaterThan(100)
-
-    const text = await blob.text()
-    expect(text.startsWith('%PDF-1.4')).toBe(true)
-    expect(text).toContain('/Type /Catalog')
-    expect(text).toContain('/MediaBox [0 0 113.39 113.39]')
-    expect(text).toContain('/Filter /DCTDecode')
-    expect(text).toContain('/Title (Test Barcode)')
-    expect(text).toContain('startxref')
+    const { text, objects, xrefAt, offsets } = await parse(blob)
+    expect(text.startsWith('%PDF-1.4\n')).toBe(true)
     expect(text.trimEnd().endsWith('%%EOF')).toBe(true)
+    expect(text.slice(xrefAt).startsWith('xref\n')).toBe(true)
+    expect(offsets).toHaveLength(objects.size)
+    offsets.forEach((offset, i) =>
+      expect(text.slice(offset).startsWith(`${i + 1} 0 obj\n`)).toBe(true)
+    )
+  })
+
+  it('sizes the page in points from millimetres', async () => {
+    const { text } = await parse(
+      await createPdfBlob({ ...image(3, 2, [255, 255, 255, 255]), widthMm: 40, heightMm: 20 })
+    )
+    expect(text).toContain('/MediaBox [0 0 113.39 56.69]')
+    expect(text).toContain('q 113.39 0 0 56.69 0 0 cm /Im1 Do Q')
+  })
+
+  it('stores the pixels losslessly, at their real size', async () => {
+    const { objects } = await parse(
+      await createPdfBlob({ ...image(3, 2, [10, 20, 30, 255]), widthMm: 10, heightMm: 10 })
+    )
+    const rgb = imageObject(objects, '/DeviceRGB')!
+    expect(rgb.dict).toContain('/Width 3 /Height 2 /BitsPerComponent 8')
+    expect(rgb.dict).toContain('/Filter /FlateDecode')
+    expect(rgb.dict).not.toContain('DCTDecode')
+    expect([...inflateSync(rgb.stream!)]).toEqual([0, 0, 0, ...Array(5).fill([10, 20, 30]).flat()])
+  })
+
+  it('has no soft mask when every pixel is opaque', async () => {
+    const { objects } = await parse(
+      await createPdfBlob({ ...image(2, 2, [255, 255, 255, 255]), widthMm: 10, heightMm: 10 })
+    )
+    expect(imageObject(objects, '/DeviceRGB')!.dict).not.toContain('/SMask')
+    expect(imageObject(objects, '/DeviceGray')).toBeUndefined()
+  })
+
+  it('keeps a transparent background as a soft mask', async () => {
+    const { objects } = await parse(
+      await createPdfBlob({ ...image(2, 2, [0, 0, 0, 0]), widthMm: 10, heightMm: 10 })
+    )
+    const rgb = imageObject(objects, '/DeviceRGB')!
+    const maskNumber = Number(/\/SMask (\d+) 0 R/.exec(rgb.dict)![1])
+    const mask = objects.get(maskNumber)!
+    expect(mask.dict).toContain('/ColorSpace /DeviceGray')
+    expect([...inflateSync(mask.stream!)]).toEqual([255, 0, 0, 0])
+  })
+
+  it('writes the title, as UTF-16 when it is not plain ASCII', async () => {
+    const make = (title: string) =>
+      createPdfBlob({ ...image(1, 1, [0, 0, 0, 255]), widthMm: 1, heightMm: 1, title }).then(parse)
+    expect((await make('Shelf (A)')).text).toContain('/Title (Shelf \\(A\\))')
+    // C a f é
+    expect((await make('Café')).text).toContain('/Title <FEFF00430061006600E9>')
+  })
+
+  it('rejects pixels that do not match the size', async () => {
+    await expect(
+      createPdfBlob({
+        pixels: new Uint8ClampedArray(8),
+        width: 3,
+        height: 3,
+        widthMm: 1,
+        heightMm: 1
+      })
+    ).rejects.toThrow()
   })
 })

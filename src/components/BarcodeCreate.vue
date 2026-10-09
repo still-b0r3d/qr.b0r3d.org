@@ -18,7 +18,7 @@ import { IS_COPY_IMAGE_TO_CLIPBOARD_SUPPORTED } from '@/utils/clipboard'
 import { downloadBlob } from '@/utils/download'
 import { parseCSV, readCSVFile } from '@/utils/csv'
 import { processCsvDataForBarcodeBatch, type BarcodeBatchItem } from '@/utils/csvBatchProcessing'
-import { createPdfBlob } from '@/utils/pdf'
+import { createPdfBlob, imagePixels } from '@/utils/pdf'
 import {
   barcodePrintGuidance,
   checkPrintSettings,
@@ -316,12 +316,13 @@ function exportSvg(): string {
 
 async function rasterizeBarcode(
   barcodeSvg: BarcodeSvg,
-  mimeType: 'image/png' | 'image/jpeg'
+  mimeType: 'image/png' | 'image/jpeg',
+  modulePx = exportScale.value
 ): Promise<Blob> {
   const blob = await rasterizeSvg({
-    svgString: styleBarcodeSvg(barcodeSvg, { ...colors.value, scale: exportScale.value }),
-    width: barcodeSvg.width * exportScale.value,
-    height: barcodeSvg.height * exportScale.value,
+    svgString: styleBarcodeSvg(barcodeSvg, { ...colors.value, scale: modulePx }),
+    width: barcodeSvg.width * modulePx,
+    height: barcodeSvg.height * modulePx,
     mimeType,
     quality: 0.95,
     background:
@@ -343,27 +344,34 @@ async function rasterExport(mimeType: 'image/png' | 'image/jpeg'): Promise<Blob>
   return rasterizeBarcode(barcode.value!, mimeType)
 }
 
-async function exportPdf(targetBarcode = barcode.value!): Promise<Blob> {
-  const guidance = printGuidance.value
-  const dpi = printSettings.value.enabled ? printSettings.value.dpi : 72
-  const widthMm = guidance
-    ? guidance.actualWidthMm
-    : (targetBarcode.width * exportScale.value * 25.4) / dpi
-  const heightMm = guidance
-    ? (guidance.actualWidthMm * targetBarcode.height) / targetBarcode.width
-    : (targetBarcode.height * exportScale.value * 25.4) / dpi
+/** CSS pixels per inch: the page size of a PDF made without a print size. */
+const SCREEN_DPI = 96
+/** Without a print size the PDF is drawn at about this DPI... */
+const PDF_DPI = 300
+/** ...unless that would be wider than this many pixels. */
+const MAX_PDF_PIXELS = 4096
 
-  const imgBlob = await rasterizeBarcode(targetBarcode, 'image/jpeg')
-  const jpegBytes = new Uint8Array(await imgBlob.arrayBuffer())
-
-  return createPdfBlob({
-    widthMm,
-    heightMm,
-    jpegBytes,
-    imageWidthPx: targetBarcode.width * exportScale.value,
-    imageHeightPx: targetBarcode.height * exportScale.value,
-    title: exportName.value
-  })
+/**
+ * The PNG, losslessly, at its physical size. With a print size every module
+ * keeps its printed width (so in a batch a longer code is wider). Without one
+ * the page is the PNG's size at 96 px per inch, drawn with whole pixels per
+ * module at about 300 DPI so the bars stay sharp.
+ */
+async function exportPdf(target = barcode.value!, title = exportName.value): Promise<Blob> {
+  let modulePx = exportScale.value
+  let dpi: number
+  if (printGuidance.value) {
+    dpi = printSettings.value.dpi
+  } else {
+    const sharper = Math.ceil((modulePx * PDF_DPI) / SCREEN_DPI)
+    const widest = Math.floor(MAX_PDF_PIXELS / target.width)
+    const pageInches = (target.width * modulePx) / SCREEN_DPI
+    modulePx = Math.max(modulePx, Math.min(sharper, widest))
+    dpi = (target.width * modulePx) / pageInches
+  }
+  const image = await imagePixels(await rasterizeBarcode(target, 'image/png', modulePx))
+  const widthMm = (image.width / dpi) * 25.4
+  return createPdfBlob({ ...image, widthMm, heightMm: (image.height / dpi) * 25.4, title })
 }
 
 async function onBatchUpload(event: Event | DragEvent) {
@@ -440,7 +448,7 @@ async function generateBatchBarcodes(kind: 'png' | 'jpg' | 'svg' | 'pdf') {
         const svgStr = styleBarcodeSvg(result, { ...colors.value, scale: exportScale.value })
         zip.file(`${baseName}.svg`, svgStr)
       } else if (kind === 'pdf') {
-        const pdfBlob = await exportPdf(result)
+        const pdfBlob = await exportPdf(result, item.fileName || item.data)
         zip.file(`${baseName}.pdf`, pdfBlob)
       } else {
         const mime = kind === 'png' ? 'image/png' : 'image/jpeg'
