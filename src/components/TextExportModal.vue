@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { buildMatrix } from '@/lib/qr-code'
+import { buildEciMatrix, buildMatrix } from '@/lib/qr-code'
 import { downloadBlob } from '@/utils/download'
 import {
   copyAsciiTextToClipboard,
@@ -28,8 +28,38 @@ const props = withDefaults(
     ecLevel?: 'L' | 'M' | 'Q' | 'H'
     /** QR version (1-40); 0 = smallest that fits. */
     version?: number
+    /** Batch rows get the UTF-8 marker (ECI 26). */
+    eci?: boolean
   }>(),
-  { isBatch: false, batchRows: () => [], ecLevel: 'Q', version: 0 }
+  { isBatch: false, batchRows: () => [], ecLevel: 'Q', version: 0, eci: false }
+)
+
+async function rowMatrix(data: string): Promise<boolean[][]> {
+  if (props.eci) return (await buildEciMatrix(data, props.ecLevel, props.version)).matrix
+  return buildMatrix(data, props.ecLevel, props.version).matrix
+}
+
+// The first batch row, as the previews show it.
+const firstRowMatrix = ref<boolean[][]>([])
+watch(
+  () => [
+    props.open,
+    props.isBatch,
+    props.batchRows[0]?.data,
+    props.ecLevel,
+    props.version,
+    props.eci
+  ],
+  async () => {
+    const first = props.isBatch && props.open ? props.batchRows[0]?.data : undefined
+    if (!first) {
+      firstRowMatrix.value = []
+      return
+    }
+    const m = await rowMatrix(first).catch(() => [])
+    if (props.batchRows[0]?.data === first) firstRowMatrix.value = m
+  },
+  { immediate: true }
 )
 
 defineEmits<{ (e: 'close'): void }>()
@@ -73,12 +103,7 @@ function preview(format: AsciiFormat): string {
 
 function batchPreview(format: AsciiFormat): string {
   if (props.isBatch && props.batchRows && props.batchRows.length > 0) {
-    try {
-      const m = buildMatrix(props.batchRows[0].data, props.ecLevel, props.version).matrix
-      return getAsciiText({ matrix: m, format })
-    } catch {
-      return ''
-    }
+    return firstRowMatrix.value.length ? getAsciiText({ matrix: firstRowMatrix.value, format }) : ''
   }
   return preview(format)
 }
@@ -100,7 +125,7 @@ async function downloadBatchZip(format: AsciiFormat, wrap: 'md' | 'txt') {
       const row = props.batchRows[i]
       let matrix: boolean[][]
       try {
-        matrix = buildMatrix(row.data, props.ecLevel, props.version).matrix
+        matrix = await rowMatrix(row.data)
       } catch (err) {
         console.error(`Skipping row ${i}: failed to build matrix`, err)
         continue

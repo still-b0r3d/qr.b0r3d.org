@@ -11,6 +11,8 @@ export interface EncodedInfo {
   ecLevel: ErrorCorrectionLevel
   /** Error correction was raised for a logo. */
   ecBoosted: boolean
+  /** The text is marked as UTF-8 (ECI 26). */
+  eci?: boolean
 }
 
 const props = defineProps<{
@@ -43,9 +45,11 @@ const stats = computed(() => {
 })
 
 const encoding = computed(() =>
-  (props.info?.segments ?? [])
-    .map((s) => `${modeLabel(s.mode)} (${Array.from(s.text).length})`)
-    .join(' + ')
+  props.info?.eci
+    ? t('text, marked as UTF-8 (ECI 26)')
+    : (props.info?.segments ?? [])
+        .map((s) => `${modeLabel(s.mode)} (${Array.from(s.text).length})`)
+        .join(' + ')
 )
 </script>
 

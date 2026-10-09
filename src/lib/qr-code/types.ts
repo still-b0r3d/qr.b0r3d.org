@@ -71,6 +71,11 @@ export interface QRCodeConfig {
    * 0 or absent = the smallest version that fits.
    */
   version?: number
+  /**
+   * A ready-made module grid (true = dark) drawn in place of encoding `data`,
+   * e.g. one with an ECI header from buildEciMatrix. It must encode `data` at
+   * `errorCorrectionLevel` (as raised for a logo); `version` is then ignored.
+   */
   matrix?: boolean[][]
   dots?: DotsConfig
   cornerSquares?: CornerSquaresConfig

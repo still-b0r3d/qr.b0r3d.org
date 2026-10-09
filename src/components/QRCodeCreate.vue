@@ -104,6 +104,7 @@ import { useMediaQuery } from '@vueuse/core'
 import type JSZip from 'jszip'
 import TextExportModal from '@/components/TextExportModal.vue'
 import {
+  buildEciMatrix,
   buildMatrix,
   buildSvgExportString,
   computeLogoFootprint,
@@ -112,15 +113,17 @@ import {
   type CornerDotType,
   type CornerSquareType,
   type DotType,
+  type EciMatrix,
   type ErrorCorrectionLevel,
   type Options as StyledQRCodeProps,
+  type Segment,
   type TypeNumber
 } from '@/lib/qr-code'
 import { newRecentQrCode } from '@/utils/recentCodes'
 import { isRecentCodesSupported } from '@/utils/recentCodesDb'
 import { recentCodesState, recordRecentCode } from '@/utils/useRecentCodes'
 import { createPdfBlob } from '@/utils/pdf'
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import 'vue-i18n'
 import { useI18n } from 'vue-i18n'
 
@@ -425,7 +428,7 @@ const qrCodeProps = computed<StyledQRCodeProps>(() => ({
   width: width.value,
   height: height.value,
   margin: margin.value,
-  matrix: eciMatrix.value ?? undefined,
+  matrix: activeEciMatrix.value?.matrix,
   dotsOptions: dotsOptions.value,
   cornersSquareOptions: cornersSquareOptions.value,
   cornersDotOptions: cornersDotOptions.value,
@@ -556,14 +559,76 @@ const isErrorCorrectionBoostedForLogo = computed(
 // batch the same size; data that doesn't fit grows to the next version up.
 const qrVersion = ref<number>(0)
 const QR_VERSIONS = Array.from({ length: MAX_QR_VERSION }, (_, i) => i + 1)
+// The level the code is really made with (raised for a logo).
+const effectiveEcLevel = computed(() =>
+  resolveEffectiveErrorCorrectionLevel(Boolean(logo.value.src), errorCorrectionLevel.value)
+)
+//#endregion
+
+//#region /* UTF-8 marker (ECI 26) */
+// Opt-in: the code says its text is UTF-8. zint makes the grid (see
+// lib/qr-code/eci.ts), so it arrives a moment later. It is kept with the text
+// and settings it was built from, and only used while they still match: a
+// grid for older text is never drawn, checked or exported with newer text.
+const useEci26 = ref(false)
+const eciMatrix = shallowRef<{ key: string; grid: EciMatrix } | null>(null)
+const eciError = ref<string | null>(null)
+const eciKey = computed(() =>
+  useEci26.value ? JSON.stringify([previewData.value, effectiveEcLevel.value, qrVersion.value]) : ''
+)
+const activeEciMatrix = computed(() =>
+  eciKey.value && eciMatrix.value?.key === eciKey.value ? eciMatrix.value.grid : null
+)
+let eciRun: { key: string; done: Promise<void> } | null = null
+
+/** Builds the grid for the current text and settings; exports await it. */
+function refreshEciMatrix(): Promise<void> {
+  const key = eciKey.value
+  if (!key) {
+    eciError.value = null
+    return Promise.resolve()
+  }
+  if (eciMatrix.value?.key === key) return Promise.resolve()
+  if (eciRun?.key === key) return eciRun.done
+  const [text, ecLevel, version] = JSON.parse(key) as [string, ErrorCorrectionLevel, number]
+  const done = buildEciMatrix(text, ecLevel, version).then(
+    (grid) => {
+      if (eciKey.value !== key) return
+      eciMatrix.value = { key, grid }
+      eciError.value = null
+    },
+    (err) => {
+      console.warn('Could not add the UTF-8 marker:', err)
+      if (eciKey.value === key) {
+        eciError.value = t("Couldn't add the UTF-8 marker, so this code is made without it.")
+      }
+    }
+  )
+  eciRun = { key, done }
+  return done
+}
+watch(eciKey, () => void refreshEciMatrix(), { immediate: true })
+
+/** The data as typed, and the UTF-8 grid for it, ready to export. */
+async function settleData() {
+  flushDataDebounce()
+  await refreshEciMatrix()
+}
+//#endregion
+
+//#region /* Size (QR version), continued */
 // What actually goes into the previewed code: text, version, modes, EC.
 const encodedInfo = computed<EncodedInfo | null>(() => {
   const text = previewData.value
   if (!text) return null
-  const ecLevel = resolveEffectiveErrorCorrectionLevel(
-    Boolean(logo.value.src),
-    errorCorrectionLevel.value
-  )
+  const ecLevel = effectiveEcLevel.value
+  const ecBoosted = ecLevel !== errorCorrectionLevel.value
+  const eci = activeEciMatrix.value
+  if (eci) {
+    // zint picks its own modes; the whole text is stored as UTF-8.
+    const segments: Segment[] = [{ mode: 'Byte', text }]
+    return { text, version: eci.version, count: eci.count, segments, ecLevel, ecBoosted, eci: true }
+  }
   try {
     const m = buildMatrix(text, ecLevel, qrVersion.value)
     return {
@@ -572,7 +637,7 @@ const encodedInfo = computed<EncodedInfo | null>(() => {
       count: m.count,
       segments: m.segments,
       ecLevel,
-      ecBoosted: ecLevel !== errorCorrectionLevel.value
+      ecBoosted
     }
   } catch {
     return null
@@ -584,47 +649,6 @@ const qrVersionInUse = computed<number | null>(() =>
 const isQrVersionTooSmall = computed(
   () => qrVersionInUse.value !== null && qrVersionInUse.value > qrVersion.value
 )
-//#endregion
-
-//#region /* UTF-8 ECI 26 compliance */
-const useEci26 = ref(false)
-const eciMatrix = ref<boolean[][] | null>(null)
-
-async function updateEciMatrix() {
-  if (!useEci26.value || !data.value) {
-    eciMatrix.value = null
-    return
-  }
-  try {
-    const { writeBarcode } = await import('@/lib/barcode/zxing')
-    const res = await writeBarcode(data.value, {
-      format: 'QRCode',
-      ecLevel: errorCorrectionLevel.value,
-      options: 'eci=26'
-    })
-    if (res.symbol) {
-      const m: boolean[][] = []
-      const { width, height, data: d } = res.symbol
-      for (let r = 0; r < height; r++) {
-        const row: boolean[] = []
-        for (let c = 0; c < width; c++) {
-          row.push(d[r * width + c] === 0)
-        }
-        m.push(row)
-      }
-      eciMatrix.value = m
-    } else {
-      eciMatrix.value = null
-    }
-  } catch (err) {
-    console.warn('Failed to build ECI 26 matrix:', err)
-    eciMatrix.value = null
-  }
-}
-
-watch([useEci26, debouncedData, errorCorrectionLevel], () => {
-  void updateEciMatrix()
-})
 //#endregion
 
 //#region /* Logo space */
@@ -1010,7 +1034,7 @@ function closeCopyModal() {
 // #endregion
 
 async function copyQRToClipboard() {
-  flushDataDebounce()
+  await settleData()
   const snapshot = snapshotForRecentCodes()
   if (IS_COPY_IMAGE_TO_CLIPBOARD_SUPPORTED) {
     if (await copyImageToClipboard(buildImageExportInput())) addToRecentCodes(snapshot)
@@ -1059,7 +1083,7 @@ async function downloadPdfQR(filename: string): Promise<boolean> {
  */
 async function downloadQRImage(format: 'png' | 'svg' | 'jpg' | 'pdf') {
   if (exportMode.value === ExportMode.Single) {
-    flushDataDebounce()
+    await settleData()
     // Sanitize filename to remove invalid characters
     const sanitizedFilename = (exportFilename.value || 'qr-code').replace(/[^a-zA-Z0-9_-]/g, '_')
     const snapshot = snapshotForRecentCodes()
@@ -1119,12 +1143,16 @@ function buildImageExportInput() {
 // whose logo came from a web address opens the same way, even offline.
 function snapshotForRecentCodes() {
   if (!isRecentCodesSupported()) return null
+  // The thumbnail is drawn from the export input, UTF-8 grid included; the
+  // saved config rebuilds that grid when it's opened.
+  const { matrix: _matrix, ...props } = qrCodeProps.value
   return JSON.parse(
     JSON.stringify({
       config: serializeQRConfig(
-        qrCodeProps.value,
+        props,
         style.value,
-        showFrame.value ? (frameSettings.value as QRCodeFrameConfig) : null
+        showFrame.value ? (frameSettings.value as QRCodeFrameConfig) : null,
+        { useEci26: useEci26.value }
       ),
       input: buildImageExportInput()
     })
@@ -1175,9 +1203,11 @@ defineExpose({ openRecentCode })
 
 //#region /* QR Config Utils - Saving, Loading and Downloading */
 function buildCurrentQRConfig(): QRCodeConfig {
+  // The UTF-8 grid isn't saved: it's rebuilt from the data when opened.
+  const { matrix: _matrix, ...props } = qrCodeProps.value
   return serializeQRConfig(
     // Save the logo as entered, so a remote address is checked again on load.
-    { ...qrCodeProps.value, image: image.value },
+    { ...props, image: image.value },
     style.value,
     showFrame.value ? (frameSettings.value as QRCodeFrameConfig) : null,
     { useEci26: useEci26.value }
@@ -1200,8 +1230,10 @@ function applyQRConfig(config: QRCodeConfig, key?: string, options?: { restoreDa
   // The frame goes with the preset: applying a preset without one turns the
   // frame off, which lost the frame when the same kind of config was loaded
   // twice in a row (the frame preset key didn't change, so nothing put it back).
+  // Configs saved by 0.33.0+b0r3d.98 also hold a UTF-8 grid; it's rebuilt.
+  const { matrix: _matrix, ...props } = config.props
   const preset = {
-    ...config.props,
+    ...props,
     style: config.style,
     ...(config.frame ? { frame: config.frame } : {})
   } as Preset
@@ -1307,7 +1339,7 @@ function loadQrConfigFromFile() {
 }
 
 watch(
-  [qrCodeProps, image, style, showFrame, frameSettings],
+  [qrCodeProps, image, style, showFrame, frameSettings, useEci26],
   () => {
     if (isLocalStorageEnabled()) {
       saveQRConfig(buildCurrentQRConfig())
@@ -1407,8 +1439,11 @@ const isMobileExportDrawerOpen = ref(false)
 watch(isMobileExportDrawerOpen, (open) => (recentCodesState.exportSheetOpen = open))
 onUnmounted(() => (recentCodesState.exportSheetOpen = false))
 const asciiMatrix = computed<boolean[][]>(() => {
-  if (useEci26.value && eciMatrix.value) return eciMatrix.value
   if (!data.value) return []
+  // The same grid as the picture (so with a logo, its raised level too).
+  if (useEci26.value) {
+    return previewData.value === data.value ? (activeEciMatrix.value?.matrix ?? []) : []
+  }
   try {
     return buildMatrix(data.value, errorCorrectionLevel.value, qrVersion.value).matrix
   } catch (err) {
@@ -1424,8 +1459,9 @@ const asciiBatchRows = computed(() =>
   }))
 )
 
-function openTextExportModal() {
+async function openTextExportModal() {
   isMobileExportDrawerOpen.value = false
+  await settleData()
   isTextExportModalOpen.value = true
 }
 const exportMode = ref(ExportMode.Single)
@@ -1584,7 +1620,9 @@ const createZipFile = (
   if (format === 'pdf') {
     zip.file(`${sanitizedFileName}.pdf`, dataUrlOrBlob as Blob)
   } else if (format === 'png' || format === 'jpg') {
-    zip.file(`${sanitizedFileName}.${format}`, (dataUrlOrBlob as string).split(',')[1], { base64: true })
+    zip.file(`${sanitizedFileName}.${format}`, (dataUrlOrBlob as string).split(',')[1], {
+      base64: true
+    })
   } else {
     // For SVG, we don't need to split and use base64
     zip.file(`${sanitizedFileName}.${format}`, dataUrlOrBlob as string)
@@ -1602,13 +1640,11 @@ async function showBatchRow(index: number) {
   frameText.value = frameTextsFromCsv.value[index] || defaultFrameText.value
   const fontFamily = fontFamiliesFromCsv.value[index]
   if (fontFamily) await onFontFamilyChange(fontFamily)
-  if (useEci26.value) {
-    await updateEciMatrix()
-  }
   await nextTick()
   // The data watcher has started its debounce timer by now; skip it.
   clearTimeout(dataDebounceTimer)
   debouncedData.value = rowData
+  await refreshEciMatrix()
   await nextTick()
   if (showFrame.value) await new Promise((resolve) => requestAnimationFrame(resolve))
 }
@@ -3466,18 +3502,35 @@ const updateDataFromModal = (newData: string) => {
               </div>
               <div
                 id="qr-eci-settings"
-                class="field-reveal mb-4 flex items-center gap-2"
+                class="field-reveal mb-4"
                 v-show="isFieldVisible('qrVersion')"
               >
-                <input
-                  id="qr-use-eci26"
-                  type="checkbox"
-                  v-model="useEci26"
-                  class="size-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <label for="qr-use-eci26" class="cursor-pointer text-sm font-medium">
-                  {{ t('UTF-8 standard (ECI 26)') }}
+                <label class="flex items-center gap-2">
+                  <input
+                    id="qr-use-eci26"
+                    v-model="useEci26"
+                    type="checkbox"
+                    aria-describedby="qr-eci-hint"
+                  />
+                  {{ t('Mark the text as UTF-8 (ECI 26)') }}
                 </label>
+                <p
+                  id="qr-eci-hint"
+                  class="ms-1 mt-2 text-xs font-normal text-zinc-500 dark:text-zinc-400"
+                >
+                  {{
+                    t(
+                      'Tells scanners how to read accents, other alphabets and emoji, as the QR standard asks. Phones read them fine without it, and a few older scanners show the mark as extra characters, so test it before printing many.'
+                    )
+                  }}
+                </p>
+                <p
+                  v-if="useEci26 && eciError"
+                  role="status"
+                  class="ms-1 mt-1 text-xs font-normal text-amber-700 dark:text-amber-300"
+                >
+                  {{ eciError }}
+                </p>
               </div>
             </section>
           </AccordionContent>
@@ -3510,6 +3563,7 @@ const updateDataFromModal = (newData: string) => {
     :batch-rows="asciiBatchRows"
     :ec-level="errorCorrectionLevel"
     :version="qrVersion"
+    :eci="useEci26"
     @close="isTextExportModalOpen = false"
   />
 

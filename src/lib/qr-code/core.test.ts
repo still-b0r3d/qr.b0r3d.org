@@ -56,4 +56,14 @@ describe('mergeConfig', () => {
     expect(mergeConfig(current, { data: 'new data' }).version).toBe(7)
     expect(mergeConfig(current, { version: 12 }).version).toBe(12)
   })
+
+  it('takes a ready-made grid from the update, and drops it when the update names none', () => {
+    const grid = [[true]]
+    const next = [[false]]
+    const current = makeCurrent({ matrix: grid })
+    // The preview passes every option on each update, matrix included.
+    expect(mergeConfig(current, { data: 'x', matrix: next }).matrix).toBe(next)
+    expect(mergeConfig(current, { data: 'x', matrix: undefined }).matrix).toBeUndefined()
+    expect(mergeConfig(current, { size: 300 }).matrix).toBe(grid)
+  })
 })

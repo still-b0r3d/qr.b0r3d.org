@@ -120,6 +120,9 @@ export function mergeConfig(
     margin: partial.margin ?? current.margin,
     errorCorrectionLevel: partial.errorCorrectionLevel ?? current.errorCorrectionLevel,
     version: partial.version ?? current.version,
+    // A grid belongs to one piece of data: an update that names no grid
+    // (or a new one) replaces it, so it never outlives the text it encodes.
+    matrix: 'matrix' in partial ? partial.matrix : current.matrix,
     dots: partial.dots ? { ...current.dots, ...partial.dots } : current.dots,
     cornerSquares: partial.cornerSquares
       ? { ...current.cornerSquares, ...partial.cornerSquares }
