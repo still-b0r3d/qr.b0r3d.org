@@ -39,7 +39,7 @@ export async function makeBarcode(
     format.gs1 && 'gs1',
     format.writeFormat === 'DataMatrix' && !options.allowRectangular && 'forceSquare'
   ].filter(Boolean)
-  const result = await writeBarcode(prepared, {
+  const result = await writeBarcode(format.encodeText?.(prepared) ?? prepared, {
     format: format.writeFormat as never,
     scale: 1,
     addHRT: format.linear && options.showText,

@@ -19,6 +19,15 @@ describe('makeBarcode + testReadBarcode', () => {
     }
   )
 
+  it('makes an ISBN typed with or without its check digit', async () => {
+    for (const typed of ['030640615', '0-306-40615-2', '978030640615', '978-0-306-40615-7']) {
+      const result = await makeBarcode(typed, 'isbn', OPTIONS)
+      expect(result.ok, typed).toBe(true)
+      if (result.ok)
+        expect(await testReadBarcode(result, 'isbn', COLORS), typed).toBe('9780306406157')
+    }
+  })
+
   it('encodes Unicode text in 2D codes', async () => {
     const text = 'Grüße 👋 日本語'
     for (const id of ['datamatrix', 'aztec', 'pdf417'] as const) {

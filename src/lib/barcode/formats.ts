@@ -49,6 +49,8 @@ export interface BarcodeFormat {
   normalizeRead?: (text: string) => string
   /** The quiet zones are part of the symbol, so they can't be left out. */
   keepsQuietZones?: boolean
+  /** What the encoder is given, when it can't take the prepared text as is. */
+  encodeText?: (text: string) => string
 }
 
 /** GS1 mod-10 check digit for the digits before it (EAN, UPC, ITF-14, GTIN, SSCC, GLN). */
@@ -335,7 +337,7 @@ export const BARCODE_FORMATS: readonly BarcodeFormat[] = [
     readFormat: 'EAN13',
     linear: true,
     gs1: false,
-    hint: '10 or 13 digits (ISBN-10 or ISBN-13); hyphens allowed. Check digit is added or checked for you.',
+    hint: "An ISBN-10 or ISBN-13; hyphens are fine. Leave off the check digit and it's added; type it and it's checked.",
     example: '978-0-306-40615-7',
     prepare: (text) => text.replace(/[\s-]/g, '').toUpperCase(),
     check: (text) => {
@@ -379,7 +381,14 @@ export const BARCODE_FORMATS: readonly BarcodeFormat[] = [
       }
       return text
     },
-    normalizeRead: (text) => text
+    normalizeRead: (text) => text,
+    // zint takes only whole ISBNs (and reads 9 digits as an old SBN).
+    encodeText: (text) =>
+      text.length === 9
+        ? text + isbn10CheckDigit(text)
+        : text.length === 12
+          ? text + gs1CheckDigit(text)
+          : text
   },
   {
     id: 'code128',

@@ -72,6 +72,15 @@ describe('number barcodes', () => {
     expect(isbn.expectedText('0306406152')).toBe('9780306406157')
     expect(isbn.expectedText('9780306406157')).toBe('9780306406157')
   })
+
+  it('gives the encoder whole ISBNs, check digit added', () => {
+    const isbn = barcodeFormat('isbn')
+    expect(isbn.encodeText!('030640615')).toBe('0306406152')
+    expect(isbn.encodeText!('097522980')).toBe('097522980X')
+    expect(isbn.encodeText!('978030640615')).toBe('9780306406157')
+    expect(isbn.encodeText!('0306406152')).toBe('0306406152')
+    expect(isbn.encodeText!('9780306406157')).toBe('9780306406157')
+  })
 })
 
 describe('text barcodes', () => {
