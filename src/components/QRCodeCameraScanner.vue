@@ -147,6 +147,10 @@ async function startScanning() {
     const foundVideo = devices.filter((d) => d.kind === 'videoinput')
     videoDevices.value = foundVideo
     hasMultipleCameras.value = foundVideo.length > 1
+    // Start the switch button from the camera actually in use, so its first
+    // press moves to another one rather than reopening this one.
+    const inUse = foundVideo.findIndex((d) => d.deviceId === track?.getSettings?.().deviceId)
+    if (inUse >= 0) currentDeviceIndex.value = inUse
 
     const { readBarcodes } = await decoder
     if (current !== session) return
