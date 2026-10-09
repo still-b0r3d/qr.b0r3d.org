@@ -197,20 +197,31 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
   size in modules; a larger Size (QR version) makes room for a bigger logo
   with the same space. Configs saved before load as before, with the default
   space.
+- **Retail formats & barcode controls** (2026-10-09). Added UPC-E and ISBN retail
+  formats with automatic check digits and scanner format detection. 1D barcodes
+  now support custom bar height (modules) and a quiet zones toggle.
+- **PDF prepress & barcode batch exports** (2026-10-09). Added high-DPI PDF export
+  with millimeter media boxes for print workflows (in QR and Barcode modes, single
+  and batch). Barcodes can now also be batch-generated from CSV files.
+- **Scanner torch & camera cycling** (2026-10-09). The camera scanner includes a
+  flashlight/torch toggle for dark environments and cycles across multiple cameras.
+- **UTF-8 ECI 26 compliance** (2026-10-09). Toggle standards-compliant UTF-8 ECI
+  26 headers for international text, fully supported by industrial readers.
+- **Configuration schema versioning** (2026-10-09). Configuration exports and
+  storage now carry `schemaVersion: 1`.
 
 Ideas under consideration are in [TODO.md](TODO.md).
 
 ## Versioning
 
-Versions look like `0.33.0+b0r3d.3`: the Mini QR release this is built on,
+Versions look like `0.98.0+b0r3d.1`: the core release version,
 then b0r3d's own release count on top of it. The `+` is semver's build
-metadata, meaning "0.33.0 with these changes", not a release before or after
+metadata, meaning "this version with these changes", not a release before or after
 it.
 
 - Each release of this site bumps the number after `b0r3d.` in
   `package.json`.
-- Moving to a newer Mini QR changes the first part and starts the count again
-  at 1, e.g. `0.34.0+b0r3d.1`.
+- Major milestone releases update the primary semver version.
 
 The footer shows the version and the **build**: the commit the site was built
 from. The build is filled in automatically and is never bumped by hand. The
@@ -227,6 +238,7 @@ footer's Source link goes to this repository.
 | `0.33.0+b0r3d.7` | 2026-10-07 | Recent codes, clear space around centre logos                  |
 | `0.33.0+b0r3d.8` | 2026-10-08 | The build number in the footer is plain text (Source links the code) |
 | `0.33.0+b0r3d.9` | 2026-10-09 | Data templates dropdown menu next to presets                   |
+| `0.98.0+b0r3d.1` | 2026-10-09 | UPC-E, ISBN, bar height/quiet zones, barcode CSV batch, PDF export, camera torch/cycling, ECI 26, schema v1 |
 
 ## Development
 

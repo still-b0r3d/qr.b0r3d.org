@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * translate-deepl.mjs
  *

@@ -51,6 +51,27 @@ describe('number barcodes', () => {
     expect(upca.normalizeRead!('0036000291452')).toBe('036000291452')
     expect(upca.normalizeRead!('036000291452')).toBe('036000291452')
   })
+
+  it('validates and expands UPC-E', () => {
+    const upce = barcodeFormat('upce')
+    expect(upce.check('01234565')).toBeNull()
+    expect(upce.check('123456')).toBeNull()
+    expect(upce.check('0123456')).toBeNull()
+    expect(upce.check('01234569')).toContain('should be 5')
+    expect(upce.expectedText('0123456')).toBe('01234565')
+    expect(upce.expectedText('123456')).toBe('01234565')
+    expect(upce.normalizeRead!('0012345000065')).toBe('01234565')
+  })
+
+  it('validates ISBN-10 and ISBN-13', () => {
+    const isbn = barcodeFormat('isbn')
+    expect(isbn.check(isbn.prepare('0-306-40615-2'))).toBeNull()
+    expect(isbn.check(isbn.prepare('978-0-306-40615-7'))).toBeNull()
+    expect(isbn.check('0306406153')).toContain('should be 2')
+    expect(isbn.check('9780306406158')).toContain('should be 7')
+    expect(isbn.expectedText('0306406152')).toBe('9780306406157')
+    expect(isbn.expectedText('9780306406157')).toBe('9780306406157')
+  })
 })
 
 describe('text barcodes', () => {

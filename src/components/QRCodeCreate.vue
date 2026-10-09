@@ -35,6 +35,7 @@ import {
   checkPrintSettings,
   DEFAULT_PRINT_SETTINGS,
   printGuidance,
+  toMillimetres,
   type PrintSettings
 } from '@/utils/printSize'
 import { IS_COPY_IMAGE_TO_CLIPBOARD_SUPPORTED } from '@/utils/clipboard'
@@ -118,6 +119,7 @@ import {
 import { newRecentQrCode } from '@/utils/recentCodes'
 import { isRecentCodesSupported } from '@/utils/recentCodesDb'
 import { recentCodesState, recordRecentCode } from '@/utils/useRecentCodes'
+import { createPdfBlob } from '@/utils/pdf'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import 'vue-i18n'
 import { useI18n } from 'vue-i18n'
@@ -423,6 +425,7 @@ const qrCodeProps = computed<StyledQRCodeProps>(() => ({
   width: width.value,
   height: height.value,
   margin: margin.value,
+  matrix: eciMatrix.value ?? undefined,
   dotsOptions: dotsOptions.value,
   cornersSquareOptions: cornersSquareOptions.value,
   cornersDotOptions: cornersDotOptions.value,
@@ -581,6 +584,47 @@ const qrVersionInUse = computed<number | null>(() =>
 const isQrVersionTooSmall = computed(
   () => qrVersionInUse.value !== null && qrVersionInUse.value > qrVersion.value
 )
+//#endregion
+
+//#region /* UTF-8 ECI 26 compliance */
+const useEci26 = ref(false)
+const eciMatrix = ref<boolean[][] | null>(null)
+
+async function updateEciMatrix() {
+  if (!useEci26.value || !data.value) {
+    eciMatrix.value = null
+    return
+  }
+  try {
+    const { writeBarcode } = await import('@/lib/barcode/zxing')
+    const res = await writeBarcode(data.value, {
+      format: 'QRCode',
+      ecLevel: errorCorrectionLevel.value,
+      options: 'eci=26'
+    })
+    if (res.symbol) {
+      const m: boolean[][] = []
+      const { width, height, data: d } = res.symbol
+      for (let r = 0; r < height; r++) {
+        const row: boolean[] = []
+        for (let c = 0; c < width; c++) {
+          row.push(d[r * width + c] === 0)
+        }
+        m.push(row)
+      }
+      eciMatrix.value = m
+    } else {
+      eciMatrix.value = null
+    }
+  } catch (err) {
+    console.warn('Failed to build ECI 26 matrix:', err)
+    eciMatrix.value = null
+  }
+}
+
+watch([useEci26, debouncedData, errorCorrectionLevel], () => {
+  void updateEciMatrix()
+})
 //#endregion
 
 //#region /* Logo space */
@@ -977,11 +1021,43 @@ async function copyQRToClipboard() {
   }
 }
 
+async function downloadPdfQR(filename: string): Promise<boolean> {
+  try {
+    const input = buildImageExportInput()
+    const jpgDataUrl = await getJpgElement(input)
+    const base64 = jpgDataUrl.split(',')[1]
+    const binary = atob(base64)
+    const jpegBytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) jpegBytes[i] = binary.charCodeAt(i)
+
+    const dims = input.targetSize
+    const guidance = printInfo.value
+    const widthMm = guidance
+      ? toMillimetres(printSettings.value.width, printSettings.value.unit)
+      : (dims.width * 25.4) / 72
+    const heightMm = guidance ? (widthMm * dims.height) / dims.width : (dims.height * 25.4) / 72
+
+    const pdfBlob = createPdfBlob({
+      widthMm,
+      heightMm,
+      jpegBytes,
+      imageWidthPx: dims.width,
+      imageHeightPx: dims.height,
+      title: exportFilename.value || 'QR Code'
+    })
+    downloadBlob(pdfBlob, filename)
+    return true
+  } catch (err) {
+    console.error('Failed to export PDF:', err)
+    return false
+  }
+}
+
 /**
  * Downloads QR code in specified format, handling both single and batch exports
- * @param format The format to download: 'png', 'svg', or 'jpg'
+ * @param format The format to download: 'png', 'svg', 'jpg', or 'pdf'
  */
-async function downloadQRImage(format: 'png' | 'svg' | 'jpg') {
+async function downloadQRImage(format: 'png' | 'svg' | 'jpg' | 'pdf') {
   if (exportMode.value === ExportMode.Single) {
     flushDataDebounce()
     // Sanitize filename to remove invalid characters
@@ -993,6 +1069,8 @@ async function downloadQRImage(format: 'png' | 'svg' | 'jpg') {
       ok = await downloadSvgElement(buildSvgExportInput(), `${sanitizedFilename}.svg`)
     } else if (format === 'png') {
       ok = await downloadPngElement(buildImageExportInput(), `${sanitizedFilename}.png`)
+    } else if (format === 'pdf') {
+      ok = await downloadPdfQR(`${sanitizedFilename}.pdf`)
     } else {
       ok = await downloadJpgElement(buildImageExportInput(), `${sanitizedFilename}.jpg`)
     }
@@ -1101,7 +1179,8 @@ function buildCurrentQRConfig(): QRCodeConfig {
     // Save the logo as entered, so a remote address is checked again on load.
     { ...qrCodeProps.value, image: image.value },
     style.value,
-    showFrame.value ? (frameSettings.value as QRCodeFrameConfig) : null
+    showFrame.value ? (frameSettings.value as QRCodeFrameConfig) : null,
+    { useEci26: useEci26.value }
   )
 }
 
@@ -1134,6 +1213,8 @@ function applyQRConfig(config: QRCodeConfig, key?: string, options?: { restoreDa
   }
 
   selectedPreset.value = preset
+
+  useEci26.value = Boolean(config.useEci26)
 
   // Style presets deliberately never touch the user's data, but an explicitly
   // loaded config file is the user's own saved setup — restore its data too.
@@ -1326,6 +1407,7 @@ const isMobileExportDrawerOpen = ref(false)
 watch(isMobileExportDrawerOpen, (open) => (recentCodesState.exportSheetOpen = open))
 onUnmounted(() => (recentCodesState.exportSheetOpen = false))
 const asciiMatrix = computed<boolean[][]>(() => {
+  if (useEci26.value && eciMatrix.value) return eciMatrix.value
   if (!data.value) return []
   try {
     return buildMatrix(data.value, errorCorrectionLevel.value, qrVersion.value).matrix
@@ -1480,9 +1562,9 @@ const onBatchInputFileUpload = (event: Event) => {
 const usedFilenames = new Set<string>()
 const createZipFile = (
   zip: JSZip,
-  dataUrl: string,
+  dataUrlOrBlob: string | Blob,
   index: number,
-  format: 'png' | 'svg' | 'jpg'
+  format: 'png' | 'svg' | 'jpg' | 'pdf'
 ) => {
   const dataString = dataStringsFromCsv.value[index]
   const frameText = frameTextsFromCsv.value[index]
@@ -1499,11 +1581,13 @@ const createZipFile = (
   // Sanitize filename to remove invalid characters
   const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9_-]/g, '_')
 
-  if (format === 'png' || format === 'jpg') {
-    zip.file(`${sanitizedFileName}.${format}`, dataUrl.split(',')[1], { base64: true })
+  if (format === 'pdf') {
+    zip.file(`${sanitizedFileName}.pdf`, dataUrlOrBlob as Blob)
+  } else if (format === 'png' || format === 'jpg') {
+    zip.file(`${sanitizedFileName}.${format}`, (dataUrlOrBlob as string).split(',')[1], { base64: true })
   } else {
     // For SVG, we don't need to split and use base64
-    zip.file(`${sanitizedFileName}.${format}`, dataUrl)
+    zip.file(`${sanitizedFileName}.${format}`, dataUrlOrBlob as string)
   }
 }
 /**
@@ -1518,6 +1602,9 @@ async function showBatchRow(index: number) {
   frameText.value = frameTextsFromCsv.value[index] || defaultFrameText.value
   const fontFamily = fontFamiliesFromCsv.value[index]
   if (fontFamily) await onFontFamilyChange(fontFamily)
+  if (useEci26.value) {
+    await updateEciMatrix()
+  }
   await nextTick()
   // The data watcher has started its debounce timer by now; skip it.
   clearTimeout(dataDebounceTimer)
@@ -1526,7 +1613,7 @@ async function showBatchRow(index: number) {
   if (showFrame.value) await new Promise((resolve) => requestAnimationFrame(resolve))
 }
 
-async function generateBatchQRCodes(format: 'png' | 'svg' | 'jpg') {
+async function generateBatchQRCodes(format: 'png' | 'svg' | 'jpg' | 'pdf') {
   isExportingBatchQRs.value = true
   const previewIndex = previewRowIndex.value
 
@@ -1536,15 +1623,38 @@ async function generateBatchQRCodes(format: 'png' | 'svg' | 'jpg') {
     for (let index = 0; index < dataStringsFromCsv.value.length; index++) {
       currentExportedQrCodeIndex.value = index
       await showBatchRow(index)
-      let dataUrl: string = ''
+      let payload: string | Blob = ''
       if (format === 'png') {
-        dataUrl = await getPngElement(buildImageExportInput())
+        payload = await getPngElement(buildImageExportInput())
       } else if (format === 'jpg') {
-        dataUrl = await getJpgElement(buildImageExportInput())
+        payload = await getJpgElement(buildImageExportInput())
+      } else if (format === 'pdf') {
+        const input = buildImageExportInput()
+        const jpgDataUrl = await getJpgElement(input)
+        const base64 = jpgDataUrl.split(',')[1]
+        const binary = atob(base64)
+        const jpegBytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i++) jpegBytes[i] = binary.charCodeAt(i)
+
+        const dims = input.targetSize
+        const guidance = printInfo.value
+        const widthMm = guidance
+          ? toMillimetres(printSettings.value.width, printSettings.value.unit)
+          : (dims.width * 25.4) / 72
+        const heightMm = guidance ? (widthMm * dims.height) / dims.width : (dims.height * 25.4) / 72
+
+        payload = createPdfBlob({
+          widthMm,
+          heightMm,
+          jpegBytes,
+          imageWidthPx: dims.width,
+          imageHeightPx: dims.height,
+          title: fileNamesFromCsv.value[index] || `QR Code ${index + 1}`
+        })
       } else {
-        dataUrl = await getInlinedSvgString(buildSvgExportInput())
+        payload = await getInlinedSvgString(buildSvgExportInput())
       }
-      createZipFile(zip, dataUrl, index, format)
+      createZipFile(zip, payload, index, format)
     }
 
     const content = await zip.generateAsync({ type: 'blob' })
@@ -2045,7 +2155,7 @@ const updateDataFromModal = (newData: string) => {
             class="flex flex-col gap-4 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700"
           >
             <h2
-              class="section-heading mx-auto -mt-[30px] bg-white px-4 text-zinc-900 dark:bg-b0r3d-bg dark:text-zinc-100"
+              class="section-heading mx-auto mt-[-30px] bg-white px-4 text-zinc-900 dark:bg-b0r3d-bg dark:text-zinc-100"
             >
               {{ t('Export QR code') }}
             </h2>
@@ -2166,6 +2276,41 @@ const updateDataFromModal = (newData: string) => {
                         font-weight="600"
                       >
                         SVG
+                      </text>
+                    </g>
+                  </svg>
+                </button>
+                <button
+                  id="download-qr-image-button-pdf"
+                  class="button"
+                  @click="() => downloadQRImage('pdf')"
+                  :disabled="isExportButtonDisabled"
+                  :title="
+                    isExportButtonDisabled
+                      ? t('Please enter data to encode first')
+                      : t('Download QR Code as PDF')
+                  "
+                  :aria-label="t('Download QR Code as PDF')"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                  >
+                    <g fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                      <path d="M5 12V5a2 2 0 0 1 2-2h7l5 5v4" />
+                      <text
+                        x="1"
+                        y="22"
+                        fill="currentColor"
+                        stroke="none"
+                        font-size="11px"
+                        font-family="monospace"
+                        font-weight="600"
+                      >
+                        PDF
                       </text>
                     </g>
                   </svg>
@@ -3318,6 +3463,21 @@ const updateDataFromModal = (newData: string) => {
                     })
                   }}
                 </p>
+              </div>
+              <div
+                id="qr-eci-settings"
+                class="field-reveal mb-4 flex items-center gap-2"
+                v-show="isFieldVisible('qrVersion')"
+              >
+                <input
+                  id="qr-use-eci26"
+                  type="checkbox"
+                  v-model="useEci26"
+                  class="size-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <label for="qr-use-eci26" class="cursor-pointer text-sm font-medium">
+                  {{ t('UTF-8 standard (ECI 26)') }}
+                </label>
               </div>
             </section>
           </AccordionContent>

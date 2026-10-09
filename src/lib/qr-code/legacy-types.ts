@@ -74,6 +74,7 @@ export type Options = {
   height?: number
   margin?: number
   data?: string
+  matrix?: boolean[][]
   image?: string
   qrOptions?: {
     typeNumber?: TypeNumber

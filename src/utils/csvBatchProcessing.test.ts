@@ -1,8 +1,28 @@
 import { describe, it, expect } from 'vitest'
-import { processCsvDataForBatch, generateBatchExportFilename } from './csvBatchProcessing'
+import {
+  processCsvDataForBatch,
+  processCsvDataForBarcodeBatch,
+  generateBatchExportFilename
+} from './csvBatchProcessing'
 import type { CSVData } from './csv'
 
 describe('CSV Batch Processing', () => {
+  describe('processCsvDataForBarcodeBatch', () => {
+    it('extracts barcode items with data and optional filename', () => {
+      const csvData: CSVData[] = [
+        { url: '950600013435', fileName: 'item_1' },
+        { url: '03600029145', fileName: '' },
+        { url: '', fileName: 'empty' },
+        { url: 'B0R3D-128', fileName: 'badge' }
+      ]
+      const result = processCsvDataForBarcodeBatch(csvData)
+      expect(result).toEqual([
+        { data: '950600013435', fileName: 'item_1' },
+        { data: '03600029145', fileName: undefined },
+        { data: 'B0R3D-128', fileName: 'badge' }
+      ])
+    })
+  })
   describe('processCsvDataForBatch', () => {
     it('processes simple URL data correctly', () => {
       const csvData: CSVData[] = [

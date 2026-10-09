@@ -33,6 +33,16 @@ describe('isValidQRCodeConfig', () => {
     expect(isValidQRCodeConfig({ ...validConfig, frame: null })).toBe(true)
   })
 
+  it('validates schemaVersion when present', () => {
+    expect(isValidQRCodeConfig({ ...validConfig, schemaVersion: 1 })).toBe(true)
+    expect(isValidQRCodeConfig({ ...validConfig, schemaVersion: '1' })).toBe(false)
+  })
+
+  it('validates useEci26 when present', () => {
+    expect(isValidQRCodeConfig({ ...validConfig, useEci26: true })).toBe(true)
+    expect(isValidQRCodeConfig({ ...validConfig, useEci26: 'true' })).toBe(false)
+  })
+
   it('returns false for null or non-object', () => {
     expect(isValidQRCodeConfig(null)).toBe(false)
     expect(isValidQRCodeConfig('string')).toBe(false)

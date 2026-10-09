@@ -18,6 +18,7 @@ function resolveConfig(config: QRCodeConfig): ResolvedQRCodeConfig {
     margin: config.margin ?? DEFAULT_CONFIG.margin,
     errorCorrectionLevel: config.errorCorrectionLevel ?? DEFAULT_CONFIG.errorCorrectionLevel,
     version: config.version ?? DEFAULT_CONFIG.version,
+    matrix: config.matrix,
     dots: {
       shape: config.dots?.shape ?? DEFAULT_CONFIG.dots.shape,
       color: config.dots?.color ?? DEFAULT_CONFIG.dots.color

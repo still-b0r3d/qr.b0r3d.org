@@ -46,6 +46,55 @@ export function cleanZintSvg(raw: string): BarcodeSvg {
 }
 
 /**
+ * Scales the vertical height of 1D barcode bars from zint's default of 50 modules
+ * to targetBarHeight modules, adjusting the SVG viewBox, dimensions, and text baseline.
+ */
+export function adjust1DBarcodeGeometry(barcode: BarcodeSvg, targetHeight: number): BarcodeSvg {
+  if (!Number.isFinite(targetHeight) || targetHeight === 50 || targetHeight <= 0) {
+    return barcode
+  }
+  const scaleY = targetHeight / 50
+  const delta = targetHeight - 50
+  const newHeight = barcode.height + delta
+
+  let updated = barcode.svg.replace(/<svg\b([^>]*)>/, (match: string) => {
+    let m = match.replace(/height="([\d.]+)"/, () => `height="${newHeight}"`)
+    if (m.includes('viewBox=')) {
+      m = m.replace(/viewBox="([^"]+)"/, (_: string, vb: string) => {
+        const parts = vb.split(' ')
+        if (parts.length === 4) parts[3] = String(Number(parts[3]) + delta)
+        return `viewBox="${parts.join(' ')}"`
+      })
+    }
+    return m
+  })
+
+  updated = updated.replace(/<rect\b([^>]*)\bheight="([\d.]+)"([^>]*)>/, (_match: string, pre: string, _h: string, post: string) => {
+    return `<rect${pre}height="${newHeight}"${post}>`
+  })
+
+  updated = updated.replace(/(<path\b[^>]*\bd=")([^"]+)(")/, (_match: string, pre: string, d: string, post: string) => {
+    const newD = d.replace(/v(\d+)/g, (_: string, v: string) => {
+      const origV = Number(v)
+      const newV = Math.round(origV * scaleY)
+      return `v${newV}`
+    })
+    return `${pre}${newD}${post}`
+  })
+
+  updated = updated.replace(/(<text\b[^>]*\by=")([\d.]+)(")/g, (_match: string, pre: string, y: string, post: string) => {
+    const newY = (Number(y) + delta).toFixed(2)
+    return `${pre}${newY}${post}`
+  })
+
+  return {
+    svg: updated,
+    width: barcode.width,
+    height: newHeight
+  }
+}
+
+/**
  * Applies colours and size. The result keeps its viewBox in modules, so it
  * can be resized (or given a print size) by changing width/height alone.
  */

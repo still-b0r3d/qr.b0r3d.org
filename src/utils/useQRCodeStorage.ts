@@ -13,6 +13,8 @@ export interface QRCodeFrameConfig {
 }
 
 export interface QRCodeConfig {
+  schemaVersion?: number
+  useEci26?: boolean
   props: StyledQRCodeProps & { name?: string }
   style: {
     borderRadius: string
@@ -42,9 +44,16 @@ export function hasStoredQRConfig(): boolean {
 export function serializeQRConfig(
   props: StyledQRCodeProps & { name?: string },
   style: { borderRadius: string; background?: string },
-  frame: QRCodeFrameConfig | null
+  frame: QRCodeFrameConfig | null,
+  options?: { useEci26?: boolean }
 ): QRCodeConfig {
-  return { props, style, frame }
+  return {
+    schemaVersion: 1,
+    ...(options?.useEci26 ? { useEci26: true } : {}),
+    props,
+    style,
+    frame
+  }
 }
 
 /**

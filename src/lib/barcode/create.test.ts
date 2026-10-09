@@ -38,6 +38,24 @@ describe('makeBarcode + testReadBarcode', () => {
     expect(free.ok && free.width !== free.height).toBe(true)
   })
 
+  it('adjusts 1D barcode bar height and decodes reliably', async () => {
+    const base = await makeBarcode('B0R3D-128', 'code128', OPTIONS)
+    const taller = await makeBarcode('B0R3D-128', 'code128', { ...OPTIONS, barHeight: 80 })
+    expect(base.ok && taller.ok).toBe(true)
+    if (!base.ok || !taller.ok) return
+    expect(taller.height).toBe(base.height + 30)
+    const read = await testReadBarcode(taller, 'code128', COLORS)
+    expect(read).toBe('B0R3D-128')
+  })
+
+  it('toggles quiet zones for 1D barcodes', async () => {
+    const withMargin = await makeBarcode('B0R3D-128', 'code128', { ...OPTIONS, quietZones: true })
+    const noMargin = await makeBarcode('B0R3D-128', 'code128', { ...OPTIONS, quietZones: false })
+    expect(withMargin.ok && noMargin.ok).toBe(true)
+    if (!withMargin.ok || !noMargin.ok) return
+    expect(noMargin.width).toBeLessThan(withMargin.width)
+  })
+
   it('reads light-on-transparent colours the way they would print', async () => {
     const result = await makeBarcode('B0R3D-128', 'code128', OPTIONS)
     if (!result.ok) throw new Error(result.error)

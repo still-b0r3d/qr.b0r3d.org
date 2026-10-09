@@ -16,7 +16,7 @@ export type PresetAttributes = {
 
 export type Preset = Omit<
   Required<StyledQRCodeProps>,
-  'shape' | 'qrOptions' | 'nodeCanvas' | 'jsdom'
+  'shape' | 'qrOptions' | 'nodeCanvas' | 'jsdom' | 'matrix'
 > &
   PresetAttributes
 
@@ -150,6 +150,8 @@ export function isSafeImageUrl(value: string): boolean {
 export function isValidQRCodeConfig(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   const c = value as Record<string, unknown>
+  if (c.schemaVersion != null && typeof c.schemaVersion !== 'number') return false
+  if (c.useEci26 != null && typeof c.useEci26 !== 'boolean') return false
   if (!c.props || typeof c.props !== 'object') return false
   const props = c.props as Record<string, unknown>
   if (props.image != null && (typeof props.image !== 'string' || !isSafeImageUrl(props.image))) {

@@ -9,6 +9,23 @@ export interface BatchProcessingResult {
   hasCustomFrameText: boolean
 }
 
+export interface BarcodeBatchItem {
+  data: string
+  fileName?: string
+}
+
+/**
+ * Processes parsed CSV data for batch barcode generation
+ */
+export function processCsvDataForBarcodeBatch(csvData: CSVData[]): BarcodeBatchItem[] {
+  return csvData
+    .map((row) => ({
+      data: 'firstName' in row ? `${row.firstName} ${row.lastName}` : row.url,
+      fileName: row.fileName || undefined
+    }))
+    .filter((item) => item.data && item.data.trim() !== '')
+}
+
 /**
  * Processes parsed CSV data for batch QR code generation
  * @param csvData Array of parsed CSV data

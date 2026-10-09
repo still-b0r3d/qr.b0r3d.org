@@ -345,6 +345,7 @@ test.describe('QR Code Creation and Management', () => {
       await page.locator('#download-qr-image-button-png').click()
       const download = await downloadPromise
       const filePath = path.join(tempDir, fileName)
+      if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true })
       await download.saveAs(filePath)
       expect(fs.existsSync(filePath)).toBeTruthy()
       return filePath

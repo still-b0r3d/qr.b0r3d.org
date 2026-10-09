@@ -18,6 +18,10 @@ const errorMessage = ref<string | null>(null)
 const isLoading = ref(false)
 const isScanning = ref(false)
 const hasMultipleCameras = ref(false)
+const videoDevices = ref<MediaDeviceInfo[]>([])
+const currentDeviceIndex = ref(0)
+const supportsTorch = ref(false)
+const isTorchOn = ref(false)
 const video = ref<HTMLVideoElement | null>(null)
 
 const CAMERA_PREFERENCE_KEY = 'qr-scanner-camera-preference'
@@ -32,6 +36,8 @@ let stream: MediaStream | null = null
 let session = 0
 
 function stopStream() {
+  isTorchOn.value = false
+  supportsTorch.value = false
   stream?.getTracks().forEach((track) => track.stop())
   stream = null
   if (video.value) video.value.srcObject = null
@@ -49,9 +55,29 @@ const stopScanning = () => {
 }
 
 const toggleCamera = () => {
-  isFrontCamera.value = !isFrontCamera.value
+  if (videoDevices.value.length > 1) {
+    currentDeviceIndex.value = (currentDeviceIndex.value + 1) % videoDevices.value.length
+    const label = videoDevices.value[currentDeviceIndex.value]?.label ?? ''
+    isFrontCamera.value = /front|user/i.test(label)
+  } else {
+    isFrontCamera.value = !isFrontCamera.value
+  }
   storageSet(CAMERA_PREFERENCE_KEY, isFrontCamera.value ? 'front' : 'back')
   startScanning()
+}
+
+async function toggleTorch() {
+  const track = stream?.getVideoTracks()[0]
+  if (!track || !supportsTorch.value) return
+  try {
+    const nextState = !isTorchOn.value
+    await (track as MediaStreamTrack & { applyConstraints: (c: unknown) => Promise<void> }).applyConstraints({
+      advanced: [{ torch: nextState }]
+    })
+    isTorchOn.value = nextState
+  } catch (err) {
+    console.warn('Failed to toggle torch:', err)
+  }
 }
 
 function cameraErrorMessage(err: unknown): string {
@@ -77,14 +103,30 @@ async function startScanning() {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw Object.assign(new Error('No camera API'), { name: 'NotFoundError' })
     }
-    const media = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        facingMode: { ideal: isFrontCamera.value ? 'user' : 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      }
-    })
+
+    const videoConstraints: MediaTrackConstraints = {
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    }
+    if (videoDevices.value.length > 1 && videoDevices.value[currentDeviceIndex.value]?.deviceId) {
+      videoConstraints.deviceId = { exact: videoDevices.value[currentDeviceIndex.value].deviceId }
+    } else {
+      videoConstraints.facingMode = { ideal: isFrontCamera.value ? 'user' : 'environment' }
+    }
+
+    let media: MediaStream
+    try {
+      media = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: videoConstraints
+      })
+    } catch {
+      // If specific deviceId or facingMode constraint fails, fall back to basic video
+      media = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: isFrontCamera.value ? 'user' : 'environment' } }
+      })
+    }
     if (current !== session) {
       media.getTracks().forEach((track) => track.stop())
       return
@@ -93,8 +135,17 @@ async function startScanning() {
     const el = video.value!
     el.srcObject = media
     await el.play()
+
+    const track = media.getVideoTracks()[0]
+    const capabilities = (track?.getCapabilities?.() ?? {}) as Record<string, unknown>
+    supportsTorch.value = Boolean(capabilities.torch)
+    isTorchOn.value = false
+
     const devices = await navigator.mediaDevices.enumerateDevices()
-    hasMultipleCameras.value = devices.filter((d) => d.kind === 'videoinput').length > 1
+    const foundVideo = devices.filter((d) => d.kind === 'videoinput')
+    videoDevices.value = foundVideo
+    hasMultipleCameras.value = foundVideo.length > 1
+
     const { readBarcodes } = await decoder
     if (current !== session) return
     isScanning.value = true
@@ -176,6 +227,19 @@ defineExpose({
       </p>
 
       <div v-if="isScanning" class="absolute end-2 top-2 flex gap-2">
+        <button
+          v-if="supportsTorch"
+          class="rounded-full bg-white/80 p-2 text-black shadow-md transition-colors hover:bg-white/90 dark:bg-black/80 dark:text-white dark:hover:bg-black/90"
+          :class="isTorchOn && 'text-amber-500 dark:text-amber-400'"
+          @click="toggleTorch"
+          type="button"
+          :aria-label="isTorchOn ? t('Turn off flashlight') : t('Turn on flashlight')"
+          :title="isTorchOn ? t('Turn off flashlight') : t('Turn on flashlight')"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M7 2v11h3v9l7-12h-4l4-8z" />
+          </svg>
+        </button>
         <button
           v-if="hasMultipleCameras"
           class="rounded-full bg-white/80 p-2 text-black shadow-md transition-colors hover:bg-white/90 dark:bg-black/80 dark:text-white dark:hover:bg-black/90"

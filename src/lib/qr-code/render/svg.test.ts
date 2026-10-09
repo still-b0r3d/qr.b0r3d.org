@@ -125,4 +125,10 @@ describe('renderQrFragment + wrapAsSvg', () => {
     )
     expect(renderQrFragment(baseConfig({ version: 10 })).matrixCount).toBe(57)
   })
+
+  it('uses custom matrix when provided', () => {
+    const customMatrix = Array.from({ length: 29 }, () => Array(29).fill(false))
+    const res = renderQrFragment(baseConfig({ matrix: customMatrix }))
+    expect(res.matrixCount).toBe(29)
+  })
 })

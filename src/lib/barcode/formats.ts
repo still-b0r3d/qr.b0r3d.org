@@ -12,6 +12,8 @@ export type BarcodeType =
   | 'ean13'
   | 'ean8'
   | 'upca'
+  | 'upce'
+  | 'isbn'
   | 'code128'
   | 'gs1-128'
   | 'itf14'
@@ -55,6 +57,63 @@ export function gs1CheckDigit(body: string): number {
     sum += i % 2 === 0 ? digit * 3 : digit
   }
   return (10 - (sum % 10)) % 10
+}
+
+/**
+ * UPC-E expansion to 11-digit UPC-A body (without check digit).
+ * upce text can be 6 digits, or 7/8 digits (with leading system 0 or 1).
+ */
+export function upceToUpca(upce: string): string {
+  const s = upce.length >= 7 ? upce[0] : '0'
+  const body = upce.length >= 7 ? upce.slice(1, 7) : upce.slice(0, 6)
+  const d6 = body[5]
+  if (['0', '1', '2'].includes(d6)) {
+    return s + body.slice(0, 2) + d6 + '0000' + body.slice(2, 5)
+  }
+  if (d6 === '3') {
+    return s + body.slice(0, 3) + '00000' + body.slice(3, 5)
+  }
+  if (d6 === '4') {
+    return s + body.slice(0, 4) + '00000' + body[4]
+  }
+  return s + body.slice(0, 5) + '0000' + d6
+}
+
+export function upceCheckDigit(upce: string): number {
+  return gs1CheckDigit(upceToUpca(upce))
+}
+
+/** Compresses 12-digit or 13-digit UPC-A back to 8-digit UPC-E if expandable. */
+export function upcaToUpce(upca: string): string | null {
+  if (upca.length === 13 && upca.startsWith('0')) upca = upca.slice(1)
+  if (upca.length !== 12) return null
+  const s = upca[0]
+  if (s !== '0' && s !== '1') return null
+  const d = upca.slice(1, 11)
+  const check = upca[11]
+  let e = ''
+  if (['0', '1', '2'].includes(d[2]) && d.slice(3, 7) === '0000') {
+    e = d.slice(0, 2) + d.slice(7, 10) + d[2]
+  } else if (d.slice(3, 8) === '00000') {
+    e = d.slice(0, 3) + d.slice(8, 10) + '3'
+  } else if (d.slice(4, 9) === '00000') {
+    e = d.slice(0, 4) + d[9] + '4'
+  } else if (d.slice(5, 9) === '0000' && Number(d[9]) >= 5) {
+    e = d.slice(0, 5) + d[9]
+  } else {
+    return null
+  }
+  return s + e + check
+}
+
+/** ISBN-10 mod-11 check character ('0'-'9' or 'X') for 9-digit body. */
+export function isbn10CheckDigit(body9: string): string {
+  let sum = 0
+  for (let i = 0; i < 9; i++) {
+    sum += Number(body9[i]) * (10 - i)
+  }
+  const rem = (11 - (sum % 11)) % 11
+  return rem === 10 ? 'X' : String(rem)
 }
 
 const stripSeparators = (text: string) => text.replace(/[\s-]/g, '')
@@ -224,6 +283,101 @@ export const BARCODE_FORMATS: readonly BarcodeFormat[] = [
     normalizeRead: (text) => (text.length === 13 && text.startsWith('0') ? text.slice(1) : text)
   },
   {
+    id: 'upce',
+    label: 'UPC-E',
+    group: 'Product barcodes',
+    writeFormat: 'UPCE',
+    readFormat: 'UPCE',
+    linear: true,
+    gs1: false,
+    hint: '6 digits (or 7 with number system 0/1; 8 with check digit). Compact barcode for small packages.',
+    example: '01234565',
+    prepare: stripSeparators,
+    check: (text) => {
+      if (!text) return 'Enter 6, 7 or 8 digits.'
+      if (!/^\d+$/.test(text)) return 'UPC-E can only hold digits.'
+      if (text.length !== 6 && text.length !== 7 && text.length !== 8) {
+        return (
+          'UPC-E needs 6 digits (or 7 with system digit, 8 with check digit); this has ' +
+          text.length +
+          '.'
+        )
+      }
+      if (text.length >= 7 && text[0] !== '0' && text[0] !== '1') {
+        return 'The first digit (number system) must be 0 or 1.'
+      }
+      if (text.length === 8) {
+        const expected = upceCheckDigit(text.slice(0, 7))
+        if (Number(text[7]) !== expected) {
+          return `The check digit (the last digit) should be ${expected}. Leave it off and it's added for you.`
+        }
+      }
+      return null
+    },
+    expectedText: (text) => {
+      const s = text.length >= 7 ? text[0] : '0'
+      const body = text.length >= 7 ? text.slice(1, 7) : text.slice(0, 6)
+      const chk = text.length === 8 ? text[7] : String(upceCheckDigit(s + body))
+      return s + body + chk
+    },
+    normalizeRead: (text) => {
+      const compressed = upcaToUpce(text)
+      return compressed ?? text
+    }
+  },
+  {
+    id: 'isbn',
+    label: 'ISBN',
+    group: 'Product barcodes',
+    writeFormat: 'ISBN',
+    readFormat: 'EAN13',
+    linear: true,
+    gs1: false,
+    hint: '10 or 13 digits (ISBN-10 or ISBN-13); hyphens allowed. Check digit is added or checked for you.',
+    example: '978-0-306-40615-7',
+    prepare: (text) => text.replace(/[\s-]/g, '').toUpperCase(),
+    check: (text) => {
+      if (!text) return 'Enter a 10- or 13-digit ISBN.'
+      if (!/^[0-9X]+$/.test(text)) return 'ISBN can only hold digits (and X for ISBN-10 check digit).'
+      if (text.length === 9 || text.length === 10) {
+        if (!/^\d{9}[\dX]?$/.test(text)) return 'ISBN-10 can only have an X as its final check character.'
+        if (text.length === 10) {
+          const expected = isbn10CheckDigit(text.slice(0, 9))
+          if (text[9] !== expected) {
+            return `The check digit (the last character) should be ${expected}. Leave it off and it's added for you.`
+          }
+        }
+        return null
+      }
+      if (text.length === 12 || text.length === 13) {
+        if (!/^\d+$/.test(text)) return 'ISBN-13 can only hold digits.'
+        if (!text.startsWith('978') && !text.startsWith('979')) {
+          return 'ISBN-13 must start with 978 or 979.'
+        }
+        if (text.length === 13) {
+          const expected = gs1CheckDigit(text.slice(0, 12))
+          if (Number(text[12]) !== expected) {
+            return `The check digit (the last digit) should be ${expected}. Leave it off and it's added for you.`
+          }
+        }
+        return null
+      }
+      return `ISBN needs 10 digits (ISBN-10) or 13 digits (ISBN-13); this has ${text.length}.`
+    },
+    expectedText: (text) => {
+      if (text.length === 9 || text.length === 10) {
+        const body9 = text.slice(0, 9)
+        const ean12 = '978' + body9
+        return ean12 + gs1CheckDigit(ean12)
+      }
+      if (text.length === 12) {
+        return text + gs1CheckDigit(text)
+      }
+      return text
+    },
+    normalizeRead: (text) => text
+  },
+  {
     id: 'code128',
     label: 'Code 128',
     group: 'Shipping and inventory',
@@ -321,11 +475,13 @@ export function codeTypeForScannedFormat(format: string | undefined, text: strin
     case 'PDF417':
       return 'pdf417'
     case 'EAN13':
-      return 'ean13'
+      return /^97[89]\d{10}$/.test(text) ? 'isbn' : 'ean13'
     case 'EAN8':
       return 'ean8'
     case 'UPCA':
       return 'upca'
+    case 'UPCE':
+      return 'upce'
     case 'Code128':
       return gs1 ? 'gs1-128' : 'code128'
     case 'ITF':

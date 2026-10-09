@@ -71,6 +71,7 @@ export interface QRCodeConfig {
    * 0 or absent = the smallest version that fits.
    */
   version?: number
+  matrix?: boolean[][]
   dots?: DotsConfig
   cornerSquares?: CornerSquaresConfig
   cornerDots?: CornerDotsConfig
@@ -102,6 +103,7 @@ export interface ResolvedQRCodeConfig {
   margin: number
   errorCorrectionLevel: ECLevel
   version: number
+  matrix?: boolean[][]
   dots: Required<DotsConfig>
   cornerSquares: Required<CornerSquaresConfig>
   cornerDots: Required<CornerDotsConfig>
