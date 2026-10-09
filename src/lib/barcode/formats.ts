@@ -338,9 +338,11 @@ export const BARCODE_FORMATS: readonly BarcodeFormat[] = [
     prepare: (text) => text.replace(/[\s-]/g, '').toUpperCase(),
     check: (text) => {
       if (!text) return 'Enter a 10- or 13-digit ISBN.'
-      if (!/^[0-9X]+$/.test(text)) return 'ISBN can only hold digits (and X for ISBN-10 check digit).'
+      if (!/^[0-9X]+$/.test(text))
+        return 'ISBN can only hold digits (and X for ISBN-10 check digit).'
       if (text.length === 9 || text.length === 10) {
-        if (!/^\d{9}[\dX]?$/.test(text)) return 'ISBN-10 can only have an X as its final check character.'
+        if (!/^\d{9}[\dX]?$/.test(text))
+          return 'ISBN-10 can only have an X as its final check character.'
         if (text.length === 10) {
           const expected = isbn10CheckDigit(text.slice(0, 9))
           if (text[9] !== expected) {

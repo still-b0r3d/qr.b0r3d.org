@@ -35,6 +35,11 @@ dev-dist
 test-results/
 playwright-report/
 tests/e2e/temp-downloads/
+tests/e2e/temp-parity/
+# Screenshot baselines exist for Linux only; a run on Windows or macOS writes
+# its own next to them (and fails those four tests).
+tests/e2e/**/*-win32.png
+tests/e2e/**/*-darwin.png
 
 # Storybook
 storybook-static/

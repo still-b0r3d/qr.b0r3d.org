@@ -71,7 +71,9 @@ async function toggleTorch() {
   if (!track || !supportsTorch.value) return
   try {
     const nextState = !isTorchOn.value
-    await (track as MediaStreamTrack & { applyConstraints: (c: unknown) => Promise<void> }).applyConstraints({
+    await (
+      track as MediaStreamTrack & { applyConstraints: (c: unknown) => Promise<void> }
+    ).applyConstraints({
       advanced: [{ torch: nextState }]
     })
     isTorchOn.value = nextState

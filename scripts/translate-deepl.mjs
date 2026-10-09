@@ -69,7 +69,7 @@ export const LOCALE_TO_DEEPL = {
   'pt-PT': 'PT-PT',
   'pt-BR': 'PT-BR',
   zh: 'ZH',
-  'zh-HANS': 'ZH',
+  'zh-HANS': 'ZH'
 }
 
 export const ENGLISH_VARIANTS = new Set(['en', 'en-GB', 'en-US'])
@@ -134,15 +134,15 @@ async function translateBatch(apiKey, texts, targetLang, attempt = 0) {
       method: 'POST',
       headers: {
         Authorization: `DeepL-Auth-Key ${apiKey}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         text: texts,
         target_lang: targetLang,
         source_lang: 'EN',
-        preserve_formatting: true,
+        preserve_formatting: true
       }),
-      signal: controller.signal,
+      signal: controller.signal
     })
   } finally {
     clearTimeout(timer)
@@ -163,7 +163,7 @@ async function translateBatch(apiKey, texts, targetLang, attempt = 0) {
   const data = await response.json()
   if (!Array.isArray(data?.translations) || data.translations.length !== texts.length) {
     throw new Error(
-      `DeepL returned unexpected response: expected ${texts.length} translations, got ${data?.translations?.length}`,
+      `DeepL returned unexpected response: expected ${texts.length} translations, got ${data?.translations?.length}`
     )
   }
   return data.translations.map((t) => t.text)
@@ -179,7 +179,7 @@ async function main() {
   if (!apiKey) {
     console.error(
       `${RED}Error: DEEPL_API_KEY environment variable is not set.${NC}\n` +
-        `Set it before running: DEEPL_API_KEY=<your-key> node scripts/translate-deepl.mjs`,
+        `Set it before running: DEEPL_API_KEY=<your-key> node scripts/translate-deepl.mjs`
     )
     process.exit(1)
   }
@@ -188,7 +188,7 @@ async function main() {
   const args = process.argv.slice(2)
   const dryRun = args.includes('--dry-run')
   const localeFilter = new Set(
-    args.filter((a) => a.startsWith('--locale=')).map((a) => a.replace('--locale=', '')),
+    args.filter((a) => a.startsWith('--locale=')).map((a) => a.replace('--locale=', ''))
   )
 
   if (dryRun) {
@@ -262,7 +262,7 @@ async function main() {
         if (!placeholdersPreserved(source, translated)) {
           log(
             RED,
-            `  ⚠ ${code}: placeholder mangle in "${key}" — source="${source}" translated="${translated}" — skipping`,
+            `  ⚠ ${code}: placeholder mangle in "${key}" — source="${source}" translated="${translated}" — skipping`
           )
           skippedPlaceholder++
           continue
@@ -275,11 +275,12 @@ async function main() {
       totalFilled += filled
       totalSkippedPlaceholder += skippedPlaceholder
 
-      const placeholderNote = skippedPlaceholder > 0 ? `, skipped ${skippedPlaceholder} (placeholder)` : ''
+      const placeholderNote =
+        skippedPlaceholder > 0 ? `, skipped ${skippedPlaceholder} (placeholder)` : ''
       const alreadyTranslated = Object.keys(en).length - gaps.length
       log(
         GREEN,
-        `✓ ${code}: filled ${filled}${placeholderNote}, ${alreadyTranslated} already translated`,
+        `✓ ${code}: filled ${filled}${placeholderNote}, ${alreadyTranslated} already translated`
       )
 
       if (filled === 0) {
@@ -293,7 +294,7 @@ async function main() {
       const absentKeySet = new Set(gaps.filter((k) => !(k in originalLocale)))
       const orderedKeys = [
         ...Object.keys(originalLocale),
-        ...Object.keys(en).filter((k) => absentKeySet.has(k)),
+        ...Object.keys(en).filter((k) => absentKeySet.has(k))
       ]
 
       const merged = {}
@@ -314,7 +315,10 @@ async function main() {
     }
   }
 
-  log(GREEN, `\n✅ Done — total filled: ${totalFilled}, skipped (placeholder): ${totalSkippedPlaceholder}`)
+  log(
+    GREEN,
+    `\n✅ Done — total filled: ${totalFilled}, skipped (placeholder): ${totalSkippedPlaceholder}`
+  )
 
   if (localeErrors.length > 0) {
     log(RED, `\n✗ ${localeErrors.length} locale(s) failed: ${localeErrors.join(', ')}`)

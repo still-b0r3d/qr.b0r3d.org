@@ -546,19 +546,13 @@ async function copyToClipboard() {
           <label for="barcode-data">{{ t('Data to encode') }}</label>
           <div class="flex grow items-center gap-2">
             <button
-              :class="[
-                'secondary-button',
-                { 'opacity-50': exportMode === ExportMode.Single }
-              ]"
+              :class="['secondary-button', { 'opacity-50': exportMode === ExportMode.Single }]"
               @click="exportMode = ExportMode.Single"
             >
               {{ t('Single export') }}
             </button>
             <button
-              :class="[
-                'secondary-button',
-                { 'opacity-50': exportMode === ExportMode.Batch }
-              ]"
+              :class="['secondary-button', { 'opacity-50': exportMode === ExportMode.Batch }]"
               @click="exportMode = ExportMode.Batch"
             >
               {{ t('Batch export') }}
@@ -614,7 +608,9 @@ async function copyToClipboard() {
                   />
                 </svg>
                 <p class="text-sm font-medium">{{ t('Upload a CSV file') }}</p>
-                <p class="text-xs text-zinc-500">{{ t('Columns: data (or code, barcode), optional fileName') }}</p>
+                <p class="text-xs text-zinc-500">
+                  {{ t('Columns: data (or code, barcode), optional fileName') }}
+                </p>
               </div>
             </button>
             <input
@@ -635,12 +631,17 @@ async function copyToClipboard() {
               </span>
               <button
                 class="secondary-button text-xs"
-                @click="batchFile = null; batchItems = []"
+                @click="
+                  batchFile = null
+                  batchItems = []
+                "
               >
                 {{ t('Start new batch export') }}
               </button>
             </div>
-            <div class="flex items-center justify-between gap-2 border-t border-zinc-200 pt-2 dark:border-zinc-800">
+            <div
+              class="flex items-center justify-between gap-2 border-t border-zinc-200 pt-2 dark:border-zinc-800"
+            >
               <div class="flex items-center gap-2">
                 <button
                   class="secondary-button px-2 py-1 text-xs"
@@ -660,7 +661,9 @@ async function copyToClipboard() {
                   →
                 </button>
               </div>
-              <code class="truncate rounded bg-zinc-200 px-2 py-0.5 font-mono text-xs dark:bg-zinc-800">
+              <code
+                class="truncate rounded bg-zinc-200 px-2 py-0.5 font-mono text-xs dark:bg-zinc-800"
+              >
                 {{ batchItems[batchPreviewIndex]?.data }}
               </code>
             </div>
@@ -808,8 +811,16 @@ async function copyToClipboard() {
             {{ copied ? t('Copied') : t('Copy') }}
           </button>
         </div>
-        <p v-if="isExportingBatch" class="text-center text-sm font-medium text-cyan-600 dark:text-cyan-400">
-          {{ t('Exporting {current} of {total}…', { current: batchExportProgress ?? 0, total: batchItems.length }) }}
+        <p
+          v-if="isExportingBatch"
+          class="text-center text-sm font-medium text-cyan-600 dark:text-cyan-400"
+        >
+          {{
+            t('Exporting {current} of {total}…', {
+              current: batchExportProgress ?? 0,
+              total: batchItems.length
+            })
+          }}
         </p>
         <button
           v-if="isRecentCodesSupported()"

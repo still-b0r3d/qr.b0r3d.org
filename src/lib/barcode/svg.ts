@@ -69,23 +69,32 @@ export function adjust1DBarcodeGeometry(barcode: BarcodeSvg, targetHeight: numbe
     return m
   })
 
-  updated = updated.replace(/<rect\b([^>]*)\bheight="([\d.]+)"([^>]*)>/, (_match: string, pre: string, _h: string, post: string) => {
-    return `<rect${pre}height="${newHeight}"${post}>`
-  })
+  updated = updated.replace(
+    /<rect\b([^>]*)\bheight="([\d.]+)"([^>]*)>/,
+    (_match: string, pre: string, _h: string, post: string) => {
+      return `<rect${pre}height="${newHeight}"${post}>`
+    }
+  )
 
-  updated = updated.replace(/(<path\b[^>]*\bd=")([^"]+)(")/, (_match: string, pre: string, d: string, post: string) => {
-    const newD = d.replace(/v(\d+)/g, (_: string, v: string) => {
-      const origV = Number(v)
-      const newV = Math.round(origV * scaleY)
-      return `v${newV}`
-    })
-    return `${pre}${newD}${post}`
-  })
+  updated = updated.replace(
+    /(<path\b[^>]*\bd=")([^"]+)(")/,
+    (_match: string, pre: string, d: string, post: string) => {
+      const newD = d.replace(/v(\d+)/g, (_: string, v: string) => {
+        const origV = Number(v)
+        const newV = Math.round(origV * scaleY)
+        return `v${newV}`
+      })
+      return `${pre}${newD}${post}`
+    }
+  )
 
-  updated = updated.replace(/(<text\b[^>]*\by=")([\d.]+)(")/g, (_match: string, pre: string, y: string, post: string) => {
-    const newY = (Number(y) + delta).toFixed(2)
-    return `${pre}${newY}${post}`
-  })
+  updated = updated.replace(
+    /(<text\b[^>]*\by=")([\d.]+)(")/g,
+    (_match: string, pre: string, y: string, post: string) => {
+      const newY = (Number(y) + delta).toFixed(2)
+      return `${pre}${newY}${post}`
+    }
+  )
 
   return {
     svg: updated,
