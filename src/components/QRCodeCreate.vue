@@ -73,6 +73,7 @@ import {
   allQrCodePresets,
   DEFAULT_LOGO_PADDING,
   defaultPreset,
+  isNewerQRCodeConfig,
   isValidQRCodeConfig,
   type Preset
 } from '@/utils/qrCodePresets'
@@ -1266,11 +1267,12 @@ function applyQRConfig(config: QRCodeConfig, key?: string, options?: { restoreDa
   }
 }
 
+/** Applies a config, or reports why not: 'newer' means it's from a later version. */
 function applyQRConfigFromJsonString(
   jsonString: string,
   key?: string,
   options?: { restoreData?: boolean }
-) {
+): 'applied' | 'newer' | 'invalid' {
   try {
     const config: unknown = JSON.parse(jsonString)
     // Same gate as the localStorage restore path (loadQRConfig) — config
@@ -1278,13 +1280,17 @@ function applyQRConfigFromJsonString(
     // logo URL into the image sinks.
     if (!isValidQRCodeConfig(config)) {
       console.error('Invalid QR code config, ignoring it')
-      return
+      return isNewerQRCodeConfig(config) ? 'newer' : 'invalid'
     }
     applyQRConfig(config as QRCodeConfig, key, options)
+    return 'applied'
   } catch {
     console.error('Failed to parse QR code config JSON')
+    return 'invalid'
   }
 }
+
+const configLoadError = ref<string | null>(null)
 
 function loadQrConfigFromFile() {
   console.debug('Loading QR code config from file')
@@ -1296,13 +1302,19 @@ function loadQrConfigFromFile() {
     if (target.files) {
       const reader = new FileReader()
       reader.onload = (e: ProgressEvent<FileReader>) => {
-        applyQRConfigFromJsonString(
+        const outcome = applyQRConfigFromJsonString(
           (e.target as FileReader).result as string,
           LOADED_FROM_FILE_PRESET_KEY,
           {
             restoreData: true
           }
         )
+        configLoadError.value =
+          outcome === 'newer'
+            ? t('This file was saved by a newer version of b0r3d QR, so it can’t be opened here.')
+            : outcome === 'invalid'
+              ? t('That file isn’t a b0r3d QR configuration.')
+              : null
       }
       reader.readAsText(target.files[0])
     }
@@ -2112,6 +2124,14 @@ const updateDataFromModal = (newData: string) => {
               </svg>
               <p>{{ t('Load QR Code configuration') }}</p>
             </button>
+            <p
+              v-if="configLoadError"
+              id="config-load-error"
+              role="alert"
+              class="max-w-xs text-center text-sm text-red-700 dark:text-red-400"
+            >
+              {{ configLoadError }}
+            </p>
             <button
               v-if="isRecentCodesSupported()"
               id="recent-codes-button"
@@ -3364,25 +3384,6 @@ const updateDataFromModal = (newData: string) => {
                 <fieldset class="flex-1" v-show="isFieldVisible('errorCorrectionLevel')">
                   <div class="flex flex-row items-center gap-2">
                     <legend>{{ t('Error correction level') }}</legend>
-                    <a
-                      href="https://docs.uniqode.com/en/articles/7219782-what-is-the-recommended-error-correction-level-for-printing-a-qr-code"
-                      target="_blank"
-                      class="icon-button flex flex-row items-center"
-                      :aria-label="t('What is error correction level?')"
-                    >
-                      <svg
-                        class="me-1"
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          fill="#888888"
-                          d="M11.95 18q.525 0 .888-.363t.362-.887t-.362-.888t-.888-.362t-.887.363t-.363.887t.363.888t.887.362m.05 4q-2.075 0-3.9-.788t-3.175-2.137T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22m0-2q3.35 0 5.675-2.325T20 12t-2.325-5.675T12 4T6.325 6.325T4 12t2.325 5.675T12 20m.1-12.3q.625 0 1.088.4t.462 1q0 .55-.337.975t-.763.8q-.575.5-1.012 1.1t-.438 1.35q0 .35.263.588t.612.237q.375 0 .638-.25t.337-.625q.1-.525.45-.937t.75-.788q.575-.55.988-1.2t.412-1.45q0-1.275-1.037-2.087T12.1 6q-.95 0-1.812.4T8.975 7.625q-.175.3-.112.638t.337.512q.35.2.725.125t.625-.425q.275-.375.688-.575t.862-.2"
-                        />
-                      </svg>
-                    </a>
                   </div>
                   <div v-for="level in errorCorrectionLevels" class="radio" :key="level">
                     <input
@@ -3406,6 +3407,16 @@ const updateDataFromModal = (newData: string) => {
                       </span>
                     </div>
                   </div>
+                  <p
+                    id="error-correction-hint"
+                    class="ms-1 mt-2 text-xs font-normal text-zinc-500 dark:text-zinc-400"
+                  >
+                    {{
+                      t(
+                        'How much of the code can be dirty, scratched or covered and still scan. Higher levels make the code denser; use High or Highest for a logo or a rough surface.'
+                      )
+                    }}
+                  </p>
                   <p
                     v-if="isErrorCorrectionBoostedForLogo"
                     class="ms-1 mt-2 text-xs font-normal text-zinc-500 dark:text-zinc-400"

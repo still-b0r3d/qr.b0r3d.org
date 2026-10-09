@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { builtInPresets, findPresetByName, isValidQRCodeConfig } from './qrCodePresets'
+import {
+  builtInPresets,
+  findPresetByName,
+  isNewerQRCodeConfig,
+  isValidQRCodeConfig,
+  QR_CONFIG_SCHEMA_VERSION
+} from './qrCodePresets'
 
 const validStyle = {
   textColor: '#000000',
@@ -36,6 +42,14 @@ describe('isValidQRCodeConfig', () => {
   it('validates schemaVersion when present', () => {
     expect(isValidQRCodeConfig({ ...validConfig, schemaVersion: 1 })).toBe(true)
     expect(isValidQRCodeConfig({ ...validConfig, schemaVersion: '1' })).toBe(false)
+  })
+
+  it('refuses a config from a newer layout, and says it is newer', () => {
+    const newer = { ...validConfig, schemaVersion: QR_CONFIG_SCHEMA_VERSION + 1 }
+    expect(isValidQRCodeConfig(newer)).toBe(false)
+    expect(isNewerQRCodeConfig(newer)).toBe(true)
+    expect(isNewerQRCodeConfig(validConfig)).toBe(false)
+    expect(isNewerQRCodeConfig(null)).toBe(false)
   })
 
   it('validates useEci26 when present', () => {

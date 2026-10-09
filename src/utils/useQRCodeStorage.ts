@@ -1,6 +1,6 @@
 import type { Options as StyledQRCodeProps } from '@/lib/qr-code'
 import type { FrameStyle } from './framePresets'
-import { isValidQRCodeConfig } from './qrCodePresets'
+import { isValidQRCodeConfig, QR_CONFIG_SCHEMA_VERSION } from './qrCodePresets'
 import { storageGet, storageSet } from './safeStorage'
 import { sanitizeSimpleFields, type QRViewMode, type SimpleFieldKey } from './simpleModeFields'
 
@@ -48,7 +48,7 @@ export function serializeQRConfig(
   options?: { useEci26?: boolean }
 ): QRCodeConfig {
   return {
-    schemaVersion: 1,
+    schemaVersion: QR_CONFIG_SCHEMA_VERSION,
     ...(options?.useEci26 ? { useEci26: true } : {}),
     props,
     style,

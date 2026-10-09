@@ -147,10 +147,24 @@ export function isSafeImageUrl(value: string): boolean {
   return true // scheme-less: relative or root-relative same-origin path
 }
 
+/**
+ * The layout of saved designs and config files. Raise it when the layout
+ * changes in a way older versions would misread; they then refuse the file
+ * (see isNewerQRCodeConfig) instead of opening it wrongly.
+ */
+export const QR_CONFIG_SCHEMA_VERSION = 1
+
+/** A config written by a later version of this app than this one. */
+export function isNewerQRCodeConfig(value: unknown): boolean {
+  const version = (value as { schemaVersion?: unknown } | null)?.schemaVersion
+  return typeof version === 'number' && version > QR_CONFIG_SCHEMA_VERSION
+}
+
 export function isValidQRCodeConfig(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   const c = value as Record<string, unknown>
   if (c.schemaVersion != null && typeof c.schemaVersion !== 'number') return false
+  if (isNewerQRCodeConfig(c)) return false
   if (c.useEci26 != null && typeof c.useEci26 !== 'boolean') return false
   if (!c.props || typeof c.props !== 'object') return false
   const props = c.props as Record<string, unknown>
