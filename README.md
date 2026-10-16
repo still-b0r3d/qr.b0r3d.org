@@ -273,6 +273,7 @@ footer's Source link goes to this repository.
 | `0.33.0+b0r3d.9` | 2026-10-09 | Data templates dropdown menu next to presets                   |
 | `0.33.0+b0r3d.98` | 2026-10-09 | UPC-E, ISBN, bar height/quiet zones, barcode CSV batch, PDF export, camera torch/cycling, ECI 26, schema v1 |
 | `0.33.0+b0r3d.1.0` | 2026-10-09 | 1.0: review fixes (UTF-8 marker, PDF, ITF-14, ISBN, barcode batches, camera switch) |
+| `0.33.0+b0r3d.1.1` | 2026-10-15 | The new b0r3d cup: logo, cup preset, favicon, app icons, splash screens and share image |
 
 ## Development
 
