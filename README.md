@@ -274,6 +274,7 @@ footer's Source link goes to this repository.
 | `0.33.0+b0r3d.98` | 2026-10-09 | UPC-E, ISBN, bar height/quiet zones, barcode CSV batch, PDF export, camera torch/cycling, ECI 26, schema v1 |
 | `0.33.0+b0r3d.1.0` | 2026-10-09 | 1.0: review fixes (UTF-8 marker, PDF, ITF-14, ISBN, barcode batches, camera switch) |
 | `0.33.0+b0r3d.1.1` | 2026-10-15 | The new b0r3d cup: logo, cup preset, favicon, app icons, splash screens and share image |
+| `0.33.0+b0r3d.1.2` | 2026-11-01 | ZXing-C++ update (zxing-wasm 3.1.6): scanning fixes; the codes it makes are unchanged (same zint 2.16.0) |
 
 ## Development
 
