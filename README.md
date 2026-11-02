@@ -88,7 +88,8 @@ Changed by b0r3d from Mini QR v0.33.0 on **2026-10-05**:
   on screen (from `0.33.0+b0r3d.4`); its own footer carried no license notice
   and could be hidden with `VITE_HIDE_CREDITS`.
 - **Build and hosting.** Production settings in `.env.production`, Node version
-  in `.node-version`, response headers (caching and security) in
+  in `.node-version` (Mini QR's `.tool-versions` is removed, so the host's
+  build sees one Node version), response headers (caching and security) in
   `public/_headers`. The service worker no longer precaches fonts, start-up
   images or screenshots. Hashed files under `assets/` keep the host's default
   caching (revalidate every load) rather than a one-year `immutable` rule:
