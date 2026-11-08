@@ -3,7 +3,10 @@
 // opens it again. The site has kept them in the browser in this shape since before this code, so
 // the codes visitors kept then still open.
 
+import { MAX_BAR_HEIGHT, MAX_SCALE, MIN_BAR_HEIGHT, MIN_SCALE, paperOf, styledSvg, type BarcodeLook, type BarcodeSvg } from './barcode-svg'
+import { barcodeFormat, isBarcodeType, type BarcodeType } from './barcodes'
 import { bareDomain } from './checks'
+import { readColour } from './css'
 import { copyDesign, type QrDesign } from './design'
 import { designObject, type JsonObject } from './design-file'
 import { formattedFixed } from './numbers'
@@ -133,6 +136,58 @@ export function newRecent(design: QrDesign, savedAt: number): { record: RecentRe
     details: { kind: 'qr', config },
     design: kept
   }
+}
+
+/**
+ * A barcode to keep: its type, the text as typed and the settings it was made with, listed by its
+ * type's name and the text, with its picture (the barcode drawn as an SVG, one pixel a module).
+ */
+export function newRecentBarcode(type: BarcodeType, text: string, look: BarcodeLook, barcode: BarcodeSvg | null, savedAt: number): { record: RecentRecord; details: RecentDetails } {
+  const format = barcodeFormat(type)
+  const settings: JsonObject = {
+    color: look.color,
+    background: look.background,
+    transparent: look.transparent,
+    scale: look.scale,
+    showText: look.showText,
+    allowRectangular: look.allowRectangular,
+    barHeight: look.barHeight,
+    quietZones: look.quietZones
+  }
+  const details: RecentDetails = { kind: 'barcode', type: format.id, data: text, settings }
+  const thumbnail = barcode ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(styledSvg(barcode, look.color, paperOf(look), 1)) : undefined
+  const record: RecentRecord = { v: 1, kind: 'barcode', key: `barcode:${format.id}:${text}`, label: format.label, title: shorten(text), sensitive: false, omitted: [], savedAt, size: 0 }
+  if (thumbnail) record.thumbnail = thumbnail
+  record.size = JSON.stringify(details).length + (thumbnail?.length ?? 0)
+  return { record, details }
+}
+
+/** A barcode's type and text as kept, or null when this site can't make it again. */
+export function keptBarcode(details: RecentDetails): { type: BarcodeType; text: string } | null {
+  if (details.kind !== 'barcode' || !isBarcodeType(details.type) || typeof details.data !== 'string') return null
+  return { type: details.type, text: details.data }
+}
+
+const kept = (x: unknown, least: number, most: number): number | null =>
+  typeof x === 'number' && !Number.isNaN(x) ? Math.max(least, Math.min(most, Math.round(x))) : null
+
+/**
+ * A barcode's settings as kept, taken back as the site takes them: only the known ones of the right
+ * kind (sizes kept in range, colours that aren't colours left out), the rest as they are now.
+ */
+export function barcodeSettings(saved: unknown, current: BarcodeLook): BarcodeLook {
+  const look = { ...current }
+  if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return look
+  const s = saved as Record<string, unknown>
+  if (typeof s.color === 'string' && readColour(s.color)) look.color = s.color
+  if (typeof s.background === 'string' && readColour(s.background)) look.background = s.background
+  if (typeof s.transparent === 'boolean') look.transparent = s.transparent
+  look.scale = kept(s.scale, MIN_SCALE, MAX_SCALE) ?? look.scale
+  if (typeof s.showText === 'boolean') look.showText = s.showText
+  if (typeof s.allowRectangular === 'boolean') look.allowRectangular = s.allowRectangular
+  look.barHeight = kept(s.barHeight, MIN_BAR_HEIGHT, MAX_BAR_HEIGHT) ?? look.barHeight
+  if (typeof s.quietZones === 'boolean') look.quietZones = s.quietZones
+  return look
 }
 
 /** The list's name for a code: its kind and title. */

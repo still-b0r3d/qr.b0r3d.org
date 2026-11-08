@@ -164,6 +164,8 @@ function fileButton(label: string, accept: string, onFile: (file: File) => void)
 export interface Designer {
   readonly sections: HTMLElement[]
   readonly dataBox: HTMLTextAreaElement
+  /** where a picture dropped becomes the logo */
+  readonly logoSection: HTMLElement
   /** Puts the design back into every control. */
   show(): void
   /** The hints that follow the code (logo room, level, size). */
@@ -582,7 +584,8 @@ export function makeDesigner(host: DesignerHost, firstText: string): Designer {
     markerNote.hidden = !(art && art.code.markerLeftOut)
     removeLogo.disabled = d.logo.trim().length === 0
     if (!d.logo.trim()) {
-      logoNote.textContent = 'Or drop a picture on the page. It goes in the middle, and the dots behind it are left out.'
+      // (dropped on this section: dropped elsewhere, a picture is read on the Scan tab, as in the PC app)
+      logoNote.textContent = 'Or drop a picture here. It goes in the middle, and the dots behind it are left out.'
       logoNote.classList.remove('warn-text')
       logoRoom.textContent = ''
     } else if (art?.pictures.logoProblem) {
@@ -602,7 +605,7 @@ export function makeDesigner(host: DesignerHost, firstText: string): Designer {
     frameTicket++
   }
 
-  return { sections, dataBox, show, showHints, useLogo, cancelPicks }
+  return { sections, dataBox, logoSection, show, showHints, useLogo, cancelPicks }
 }
 
 function shapeRow(label: string, shape: HTMLSelectElement, colour: HTMLInputElement): HTMLElement {

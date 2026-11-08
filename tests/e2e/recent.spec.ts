@@ -362,10 +362,17 @@ test.describe('Recent codes', () => {
     await expect(rows.locator('strong')).toHaveText(['WiFi: b0r3d guest', 'EAN-13: 9506000134352', 'URL: https://b0r3d.org/old'])
     await expect(w.locator('.recent-count')).toHaveText('3 of 20 codes, about 10 KB')
     await expect(rows.nth(1).locator('img')).toHaveAttribute('src', /^data:image\/svg\+xml;charset=utf-8,/)
+    // a barcode opens as its own type, with its text and settings
     await w.getByRole('button', { name: 'Open EAN-13: 9506000134352' }).click()
-    await expect(w.locator('.recent-status')).toHaveText("That's a barcode: this page opens only QR codes from Recent codes for now.")
+    await expect(w).toBeHidden()
+    await expect(page.getByTestId('code-type')).toHaveValue('ean13')
+    await expect(page.locator('#barcode-data')).toHaveValue('9506000134352')
+    await expect(page.getByTestId('check')).toHaveAttribute('data-result', 'ok', { timeout: 20_000 })
+    // and a QR code goes back to QR codes
+    await openWindow(page)
     await w.getByRole('button', { name: 'Open URL: https://b0r3d.org/old' }).click()
     await expect(w).toBeHidden()
+    await expect(page.getByTestId('code-type')).toHaveValue('')
     await expect(page.locator('#data')).toHaveValue('https://b0r3d.org/old')
     await expect(page.getByLabel('Dot shape', { exact: true })).toHaveValue('rounded')
     await expect(page.getByLabel('Dot colour', { exact: true })).toHaveValue('#cc0000')

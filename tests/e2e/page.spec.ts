@@ -162,7 +162,7 @@ test.describe('around the code', () => {
     await expect(page.locator('footer a', { hasText: '← b0r3d.org' })).toHaveAttribute('href', 'https://b0r3d.org')
   })
 
-  test('the Scan tab says what comes next', async ({ page }) => {
+  test('the Create and Scan tabs', async ({ page }) => {
     await openPage(page)
     await page.getByRole('tab', { name: 'Scan' }).click()
     await expect(page.getByRole('tab', { name: 'Scan' })).toHaveAttribute('aria-selected', 'true')

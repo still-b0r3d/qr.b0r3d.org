@@ -75,11 +75,11 @@ export function paint(ctx: Canvas2D, art: QrArt, scale: number, width: number, h
 }
 
 /** Lets a canvas's memory go at once (phones keep it a while and cap the total). */
-function release(canvas: HTMLCanvasElement): void {
+export function release(canvas: HTMLCanvasElement): void {
   canvas.width = canvas.height = 0
 }
 
-function canvasFor(width: number, height: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+export function canvasFor(width: number, height: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
   const problem = tooBig(width, height)
   if (problem) throw new Error(problem)
   const canvas = document.createElement('canvas')
@@ -90,7 +90,7 @@ function canvasFor(width: number, height: number): { canvas: HTMLCanvasElement; 
   return { canvas, ctx }
 }
 
-function blobOf(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
+export function blobOf(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
   return new Promise((resolve, reject) =>
     canvas.toBlob(
       (blob) => {
@@ -190,9 +190,9 @@ export function markdown(text: string): string {
 
 /**
  * A file name from what's typed in the File name box: the characters Windows, macOS and phones
- * won't take in a name left out, "qr-code" when nothing's left.
+ * won't take in a name left out, "qr-code" (or a barcode's type) when nothing's left.
  */
-export function fileName(typed: string, extension: string): string {
+export function fileName(typed: string, extension: string, fallback = 'qr-code'): string {
   let name = ''
   for (const ch of typed) {
     const c = ch.charCodeAt(0)
@@ -201,5 +201,5 @@ export function fileName(typed: string, extension: string): string {
   }
   name = name.trim().replace(/[. ]+$/, '')
   if (name.toLowerCase().endsWith('.' + extension)) name = name.slice(0, -extension.length - 1)
-  return (name || 'qr-code') + '.' + extension
+  return (name || fallback) + '.' + extension
 }

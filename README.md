@@ -20,7 +20,7 @@ their browsers stay as they are. It's built in stages:
    offline app.
 2. **The designer and every export.** *Done.*
 3. **The data templates and Recent codes.** *Done.*
-4. The other barcodes and scanning (a picture, the clipboard, the camera).
+4. **The other barcodes and scanning (a picture, the clipboard, the camera).** *Done.*
 5. Batches and print sizes, with tests that the site and the PC app make the same files.
 
 What's there so far:
@@ -47,6 +47,18 @@ What's there so far:
 - The scan check: every change is drawn the way it's saved and read back by a scanner (zxing-wasm,
   in a worker), like a phone camera reading the saved file, with warnings for low contrast,
   inverted colours, a see-through background and a thin quiet zone, and "What's in this code".
+- 13 other barcodes, picked in the Code type list: Data Matrix, GS1 DataMatrix, Aztec, PDF417,
+  EAN-13, EAN-8, UPC-A, UPC-E, ISBN, Code 128, GS1-128, ITF-14 and Code 39. zint makes them (in
+  zxing-wasm's barcode maker, in a worker), so they come out as the PC app makes them, SVG for SVG;
+  each type's checks and messages are the PC app's, check digits are added, and each barcode gets
+  its own scan check. Text under the bars, quiet zones, bar height, a rectangular Data Matrix,
+  colours, a see-through background and the size; PNG, JPG, SVG and PDF; Recent codes keep
+  barcodes too, with their settings.
+- The Scan tab: codes read from pictures (opened, several at once, pasted, dropped anywhere on the
+  page, or Ctrl+V) and from a camera, QR codes and the common barcodes, light on dark too. Each code
+  found says what it is (a link, a Wi-Fi network, a product number...) without showing a password,
+  and can be copied, opened (after a question that shows where the link goes) or made again on the
+  Create tab. Pictures never leave the browser.
 - Dark and light looks (dark by default), kept as before.
 - Works offline once visited, and installs as an app.
 

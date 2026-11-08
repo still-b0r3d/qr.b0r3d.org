@@ -134,8 +134,9 @@ test.describe('data templates', () => {
     await d.getByRole('button', { name: 'Cancel' }).click()
     await expect(d).toBeHidden()
     await expect(page.locator('#data')).toHaveValue('WIFI:T:WEP;S:Loaf\\;Lane;P:crumbs;H:true;;')
-    // Escape too
+    // Escape too (once the window is up: WebKit takes Escape only after it has drawn it)
     await page.getByTestId('edit-template').click()
+    await expect(d).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(d).toBeHidden()
     await expect(page.locator('#data')).toHaveValue('WIFI:T:WEP;S:Loaf\\;Lane;P:crumbs;H:true;;')

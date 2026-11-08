@@ -264,7 +264,7 @@ export function trackingNames(text: string): { names: string[]; clean: string } 
 }
 
 /** %XX escapes undone where they're whole UTF-8 letters; any other stays as written. */
-function unescapeData(s: string): string {
+export function unescapeData(s: string): string {
   let out = ''
   for (let i = 0; i < s.length; ) {
     if (s[i] !== '%' || !/^[0-9A-Fa-f]{2}$/.test(s.slice(i + 1, i + 3))) {

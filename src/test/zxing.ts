@@ -39,3 +39,9 @@ export function drawGrid(dark: (row: number, column: number) => boolean, size: n
 export async function readQr(pixels: Pixels): Promise<ReadResult[]> {
   return readBarcodes(pixels as unknown as ImageData, { formats: ['QRCode'], tryHarder: true, maxNumberOfSymbols: 1 })
 }
+
+/** Every code of these kinds (the reader's names) in some pixels; Code 39 as plain Code 39, as the site reads it. */
+export async function readCodes(pixels: Pixels, formats: string[]): Promise<ReadResult[]> {
+  const asked = formats.map((f) => (f === 'Code39' ? 'Code39Std' : f)) as NonNullable<Parameters<typeof readBarcodes>[1]>['formats']
+  return readBarcodes(pixels as unknown as ImageData, { formats: asked, tryHarder: true })
+}

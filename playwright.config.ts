@@ -32,6 +32,7 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     { name: 'phone', use: { ...devices['Pixel 7'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } }
+    // (WebKit has no pretend camera to scan with)
+    { name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: /camera\.spec\.ts$/ }
   ]
 })

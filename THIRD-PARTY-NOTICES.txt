@@ -3,8 +3,9 @@ follows its code closely enough that its notice belongs here too.
 
 zxing-wasm 3.1.6
 https://github.com/Sec-ant/zxing-wasm
-Reads the codes back for the scan check. It's zxing-cpp (below) compiled to
-WebAssembly, served from this site.
+Makes the other barcodes (with zint, below), reads the codes on the Scan tab,
+and reads every code back for the scan check. It's zxing-cpp (below) compiled
+to WebAssembly, served from this site.
 Copyright (c) 2023 Ze-Zheng Wu
 Licensed under the MIT License, the full text of which follows.
 
@@ -254,9 +255,12 @@ above).
 
 zint 2.16.0
 https://www.zint.org.uk
-QR codes with the UTF-8 marker follow zint's rules (written again in
-TypeScript): how it splits the text into modes, picks the version and scores
-the masks, so each comes out as b0r3d QR has always made it with zint.
+Makes the other barcodes (Data Matrix, Aztec, PDF417, EAN, UPC, ISBN,
+Code 128, GS1-128, ITF-14 and Code 39): zint is built into zxing-wasm's
+barcode maker. QR codes with the UTF-8 marker follow zint's rules too (written
+again in TypeScript): how it splits the text into modes, picks the version
+and scores the masks, so each comes out as b0r3d QR has always made it with
+zint.
 Copyright (C) 2008-2025 Robin Stuart and the zint contributors
 Its choice of QR code modes (qr.c's qr_define_modes) is adapted from Project
 Nayuki's QR Code generator library,

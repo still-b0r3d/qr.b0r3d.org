@@ -5,10 +5,12 @@
 // has them, kept in this browser.
 
 import { QrArt } from '../qr/art'
+import type { BarcodeLook, BarcodeSvg } from '../qr/barcode-svg'
+import type { BarcodeType } from '../qr/barcodes'
 import type { QrDesign } from '../qr/design'
 import { DesignFileError, readDesign } from '../qr/design-file'
 import { paint } from '../qr/export'
-import { MOST, newRecent, recentName, sizeText } from '../qr/recent'
+import { keptBarcode, MOST, newRecent, newRecentBarcode, recentName, sizeText, type RecentDetails, type RecentRecord } from '../qr/recent'
 import { h } from './dom'
 import { lockIcon } from './icons'
 import {
@@ -29,6 +31,8 @@ import {
 export interface RecentHost {
   /** A design from Recent codes, its text exactly as it was, into the page. */
   open(design: QrDesign): void
+  /** A barcode from Recent codes: its type, its text exactly as it was, and its settings as kept. */
+  openBarcode(type: BarcodeType, text: string, settings: unknown): void
   /** The design the page has now (opened codes are read on top of it). */
   current(): QrDesign
   /** A short note under the code; `after` keeps what the note said before it. */
@@ -41,6 +45,8 @@ export interface Recent {
   readonly dialog: HTMLDialogElement
   /** Adds a code just saved or copied (`art` is it drawn, for its picture), while that's on. */
   remember(design: QrDesign, art: QrArt | null): Promise<void>
+  /** Adds a barcode just saved or copied: its type, text and settings, and it drawn for its picture. */
+  rememberBarcode(type: BarcodeType, text: string, look: BarcodeLook, barcode: BarcodeSvg | null): Promise<void>
 }
 
 const THUMBNAIL = 160
@@ -98,6 +104,16 @@ export function makeRecent(host: RecentHost): Recent {
         kept.record.size += picture.length
       }
     }
+    await keep(kept.record, kept.details)
+  }
+
+  async function rememberBarcode(type: BarcodeType, text: string, look: BarcodeLook, barcode: BarcodeSvg | null): Promise<void> {
+    if (offForNow) return
+    const kept = newRecentBarcode(type, text, look, barcode, Date.now())
+    await keep(kept.record, kept.details)
+  }
+
+  async function keep(record: RecentRecord, details: RecentDetails): Promise<void> {
     try {
       if (!(await remembering())) return
     } catch (e) {
@@ -107,7 +123,7 @@ export function makeRecent(host: RecentHost): Recent {
     }
     let id: number
     try {
-      id = await addCode(kept.record, kept.details)
+      id = await addCode(record, details)
     } catch {
       lastFailed = true
       host.say("Not added to Recent codes: the browser couldn't store it (it may be out of room for this site).", 'warn', true)
@@ -115,7 +131,7 @@ export function makeRecent(host: RecentHost): Recent {
     }
     lastFailed = false
     // the same code saved again while the note is up: the note is about it now
-    if (!noteBox.hidden && kept.record.key === noteKey) noteCode = id
+    if (!noteBox.hidden && record.key === noteKey) noteCode = id
     if (noteDone) return
     let shownBefore = false
     try {
@@ -131,7 +147,7 @@ export function makeRecent(host: RecentHost): Recent {
       // shown all the same, once on this page
     }
     noteCode = id
-    noteKey = kept.record.key
+    noteKey = record.key
     noteProblem.hidden = true
     noteBox.hidden = false
     noteSaid.textContent = ''
@@ -290,7 +306,14 @@ export function makeRecent(host: RecentHost): Recent {
       // the database went away: the code isn't here to open
     }
     if (details?.kind === 'barcode') {
-      status.textContent = "That's a barcode: this page opens only QR codes from Recent codes for now."
+      const barcode = keptBarcode(details)
+      if (!barcode) {
+        status.textContent = "That code can't be opened: it's a kind of barcode this page doesn't make."
+        return
+      }
+      host.openBarcode(barcode.type, barcode.text, details.settings)
+      dialog.close()
+      host.say('Opened from Recent codes', 'good')
       return
     }
     if (details?.kind === 'qr' && details.config && typeof details.config === 'object') {
@@ -393,5 +416,5 @@ export function makeRecent(host: RecentHost): Recent {
   }
   button.addEventListener('click', () => void openWindow())
 
-  return { button, note, dialog, remember }
+  return { button, note, dialog, remember, rememberBarcode }
 }

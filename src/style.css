@@ -646,6 +646,11 @@ input[type='range'] {
   margin: 0;
 }
 
+.in-code-rows dd.mono {
+  font-family: Consolas, 'Courier New', monospace;
+  overflow-wrap: anywhere;
+}
+
 .in-code-text {
   font-family: Consolas, 'Courier New', monospace;
   font-size: 13px;
@@ -1069,12 +1074,333 @@ input[type='range'] {
   width: 100%;
 }
 
-.scan-panel {
-  min-height: 40vh;
+/* the other barcodes */
+
+.code-type-row {
+  margin-top: 0;
+}
+
+.code-type-row select {
+  min-width: 12em;
+}
+
+.stage.barcode-stage {
+  width: 100%;
+}
+
+textarea.mono {
+  font-family: Consolas, 'Courier New', monospace;
+}
+
+#barcode-data {
+  min-height: 72px;
+}
+
+.barcode-credit {
+  margin: 0;
+}
+
+/* the Scan tab: where to read from, and what was found */
+
+.scan-sources {
+  display: flex;
+  flex-direction: column;
+}
+
+.scan-sources .lead {
+  margin: 0;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.scan-heading {
+  margin: 22px 0 8px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.wide,
+.scan-sources .file-button {
+  display: block;
+  width: 100%;
+}
+
+.scan-sources button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 14px;
+  background: var(--button);
+  font-weight: 600;
+}
+
+.scan-sources button:hover:not(:disabled) {
+  background: var(--button-hover);
+}
+
+.scan-sources button + button,
+.scan-sources .file-button + button {
+  margin-top: 8px;
+}
+
+.scan-results {
+  min-width: 0;
+}
+
+.scan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scan-head button {
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 14px;
+  background: var(--button);
+}
+
+.scan-status {
+  min-height: 24px;
+  margin: 0;
+  font-weight: 600;
+}
+
+.scan-status[data-kind='warn'] {
+  color: var(--warn);
+}
+
+.scan-status[data-kind='dim'] {
+  color: var(--dim);
+}
+
+.scan-note {
+  min-height: 18px;
+  margin: 4px 0 0;
+}
+
+.found-stage {
+  position: relative;
+  min-height: 320px;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.found-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.found-hint {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
+  margin: 0;
+  padding: 20px;
   color: var(--dim);
   text-align: center;
+}
+
+.found-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--field);
+}
+
+.found-picture {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  padding: 3px;
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.found-picture img {
+  max-width: 100%;
+  max-height: 100%;
+  image-rendering: pixelated;
+}
+
+.found-words {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.found-kind {
+  margin: 0;
+  font-weight: 700;
+  color: var(--strong);
+}
+
+.found-kind.warn-text {
+  color: var(--warn);
+}
+
+.found-summary {
+  margin-top: 2px;
+}
+
+textarea.found-text {
+  min-height: 0;
+  max-height: 120px;
+  margin-top: 8px;
+  background: var(--bg);
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  resize: none;
+}
+
+.found-buttons {
+  margin-top: 8px;
+}
+
+/* the camera, and opening a scanned link */
+
+.camera-dialog,
+.link-dialog {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.link-dialog {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.camera-dialog::backdrop,
+.link-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.camera-head {
+  flex-wrap: wrap;
+}
+
+.camera-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.camera-choice label {
+  font-weight: 600;
+}
+
+.camera-choice select {
+  max-width: 260px;
+}
+
+.camera-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 300px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #000000;
+}
+
+.camera-stage.trouble {
+  background: var(--field);
+}
+
+.camera-view {
+  position: relative;
+  max-width: 100%;
+}
+
+.camera-video {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+}
+
+.camera-video.mirrored {
+  transform: scaleX(-1);
+}
+
+/* the frame to aim with, 15 % in from the top and bottom and 10 % from the sides, the rest dimmed */
+.camera-veil {
+  position: absolute;
+  inset: 15% 10%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+.camera-starting {
+  position: absolute;
+  margin: 0;
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.camera-problem-panel {
+  padding: 20px 32px;
+  text-align: center;
+}
+
+.camera-problem {
+  margin: 0;
+  color: var(--bad);
+  font-size: 15px;
+}
+
+.camera-dialog .dialog-foot,
+.link-dialog .dialog-foot {
+  justify-content: flex-end;
+}
+
+.camera-dialog button,
+.link-dialog button {
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 14px;
+  background: var(--button);
+}
+
+.camera-dialog button:hover,
+.link-dialog button:hover {
+  background: var(--button-hover);
+}
+
+.link-dialog h2 {
+  margin: 0 0 8px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 20px;
+}
+
+.link-url {
+  overflow-wrap: anywhere;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 14px;
+  color: var(--strong);
+}
+
+.link-warnings {
+  margin: 0;
+  padding-left: 20px;
 }
 
 /* ---------- the bottom ---------- */

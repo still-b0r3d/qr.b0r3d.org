@@ -95,7 +95,8 @@ test.describe('the designer', () => {
     await page.locator('#with-background').uncheck()
     await expect(page.getByTestId('warnings')).toHaveText('⚠ Transparent background: put the code on a plain, light surface.')
     await page.locator('#with-background').check()
-    await page.getByLabel('Background colour', { exact: true }).fill('#000000')
+    // (the Style section's: the barcode settings have one of their own)
+    await page.locator('details.sec').filter({ has: page.locator('.sec-title', { hasText: /^Style$/ }) }).getByLabel('Background colour', { exact: true }).fill('#000000')
     await page.getByLabel('Dot colour', { exact: true }).fill('#ffffff')
     await page.getByLabel('Corner square colour', { exact: true }).fill('#ffffff')
     await page.getByLabel('Corner dot colour', { exact: true }).fill('#ffffff')
@@ -346,7 +347,7 @@ test.describe('found in review', () => {
 
   test('the background picker and No picture follow their switches', async ({ page }) => {
     await openPage(page)
-    const picker = page.getByLabel('Background colour', { exact: true })
+    const picker = page.locator('details.sec').filter({ has: page.locator('.sec-title', { hasText: /^Style$/ }) }).getByLabel('Background colour', { exact: true })
     await page.locator('#with-background').uncheck()
     await expect(picker).toBeDisabled()
     await page.locator('#with-background').check()
