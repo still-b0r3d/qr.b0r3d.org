@@ -62,3 +62,11 @@ export function formatted(x: number, decimals: number): string {
   const text = fraction ? `${whole}.${fraction}` : whole
   return x < 0 && /[1-9]/.test(text) ? `-${text}` : text
 }
+
+/** As `formatted`, with exactly `decimals` places ("0.40", as the PC app's "0.00"). */
+export function formattedFixed(x: number, decimals: number): string {
+  const text = formatted(x, decimals)
+  if (decimals === 0) return text
+  const [whole, fraction = ''] = text.split('.')
+  return `${whole}.${fraction.padEnd(decimals, '0')}`
+}

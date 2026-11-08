@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import pcApp from '../test/pc-app-svgs.json'
 import { QrArt, svgText } from './art'
-import { infoLine, levelHint, warnings } from './checks'
+import { designWarnings, infoLine, levelHint } from './checks'
 import { plainDesign } from './design'
 import { fileName, pictureSize, tooBig } from './export'
 import { formatted, roundHalfAway, roundHalfEven, written } from './numbers'
@@ -26,7 +26,7 @@ describe('the same files as the PC app', () => {
     const design = { ...plainDesign(c.data), level: c.level, margin: c.margin, width: c.width, height: c.height }
     const art = new QrArt(design)
     expect(art.toSvg()).toBe(c.svg)
-    const size = pictureSize(art)
+    const size = pictureSize(art, () => 0)
     expect([size.width, size.height]).toEqual([c.pngWidth, c.pngHeight])
   })
 })
@@ -68,8 +68,8 @@ describe('the words around the code', () => {
   })
 
   it('warns about a thin quiet zone only', () => {
-    expect(warnings(4)).toEqual([])
-    expect(warnings(0.125)).toEqual([
+    expect(designWarnings(plainDesign('x'))).toEqual([])
+    expect(designWarnings({ ...plainDesign('x'), margin: 0.125 })).toEqual([
       'Only 0.13 modules of blank space around the code. Leave at least 4 (Quiet zone), or place it on a plain light area.'
     ])
   })

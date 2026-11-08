@@ -18,7 +18,7 @@ their browsers stay as they are. It's built in stages:
 
 1. **The page, a plain QR code, PNG and SVG, and the scan check.** *Done.* The page installs as an
    offline app.
-2. The designer and every export.
+2. **The designer and every export.** *Done.*
 3. The data templates and Recent codes.
 4. The other barcodes and scanning (a picture, the clipboard, the camera).
 5. Batches and print sizes, with tests that the site and the PC app make the same files.
@@ -27,10 +27,19 @@ What's there so far:
 
 - QR codes made exactly as before: the same text, level and size give the same modules as this
   site always made, and as the PC app makes (its tests carry 100 codes made by the earlier site).
-- Error correction, quiet zone and picture size.
-- PNG and SVG files; the SVG is character for character the PC app's.
+- The designer: presets (Plain, Rounded, Dots, b0r3d Cup, Rukus) and Randomize; dot, corner square
+  and corner dot shapes and colours; a background or none; rounded corners; a logo from a file, the
+  clipboard, a drop or a web address, with its size and the space around it; a frame with a caption
+  on any side, its colours, picture, lengths and one of 23 fonts; error correction, the size of the
+  code (QR version), the UTF-8 marker, quiet zone and picture size.
+- PNG, JPG, SVG, PDF and the code as text (three kinds, plain or Markdown), and copying the picture.
+  Captions in PNG, JPG and PDF files are drawn in their real font. The SVG files, picture sizes and
+  warnings are the PC app's, character for character.
+- Design files (`qr-code-config.json`) both ways, byte for byte as the PC app writes them, and the
+  last design kept in the browser where the site always kept it.
 - The scan check: every change is drawn the way it's saved and read back by a scanner (zxing-wasm,
-  in a worker), like a phone camera reading the saved file. A thin quiet zone gets a warning.
+  in a worker), like a phone camera reading the saved file, with warnings for low contrast,
+  inverted colours, a see-through background and a thin quiet zone, and "What's in this code".
 - Dark and light looks (dark by default), kept as before.
 - Works offline once visited, and installs as an app.
 

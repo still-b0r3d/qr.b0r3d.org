@@ -75,7 +75,7 @@ test.describe('making a plain code', () => {
     await expect(page.getByTestId('warnings')).toBeHidden()
 
     await page.locator('#picture-size').fill('512')
-    await expect(page.getByTestId('size-hint')).toHaveText('PNG: 512 × 512 pixels. SVG: drawn as shapes, sharp at any size.')
+    await expect(page.getByTestId('size-hint')).toContainText('PNG and JPG: 512 × 512 pixels.')
     await page.locator('#picture-size').fill('9')
     await page.locator('#picture-size').blur()
     await expect(page.locator('#picture-size')).toHaveValue('50')
@@ -182,7 +182,7 @@ test.describe('on a phone', () => {
     const viewport = page.viewportSize()!
     expect(Math.round(box!.y + box!.height)).toBe(viewport.height)
     await expect(page.locator('.export-box')).toBeHidden()
-    await page.getByRole('button', { name: 'Save' }).click()
+    await page.locator('.export-toggle').click()
     await expect(page.locator('.export-box')).toBeVisible()
     // the settings scroll underneath and can be reached
     await page.locator('#picture-size').scrollIntoViewIfNeeded()

@@ -32,6 +32,12 @@ test.describe('offline', () => {
     await expect(page.getByTestId('check')).toHaveAttribute('data-result', 'ok', { timeout: 20_000 })
     await page.locator('#data').fill('made offline')
     await expect(page.getByTestId('check')).toHaveAttribute('data-result', 'ok', { timeout: 20_000 })
+    // a caption font's Latin letters are kept for offline use too
+    await page.locator('details.sec summary', { hasText: /^Frame$/ }).click()
+    await page.locator('#frame-on').check()
+    await page.locator('#caption-font').selectOption({ label: 'Pacifico' })
+    await expect.poll(() => page.evaluate(() => [...document.fonts].some((f) => f.family.includes('Pacifico') && f.status === 'loaded'))).toBe(true)
+    await expect(page.getByTestId('check')).toHaveAttribute('data-result', 'ok', { timeout: 20_000 })
     await page.goto('/LICENSE.txt')
     await expect(page.locator('body')).toContainText('Licensor: b0r3d.org')
     await context.setOffline(false)

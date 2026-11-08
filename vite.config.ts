@@ -20,10 +20,13 @@ const CSP_SOURCES: Record<string, string[]> = {
   // Styles come from the built stylesheet only; the page sets the few that change (sizes) through
   // element.style, which the policy allows.
   'style-src': ["'self'"],
-  'img-src': ["'self'", 'blob:'],
+  // Logos and frame pictures are kept in designs as data: URLs.
+  'img-src': ["'self'", 'blob:', 'data:'],
+  // The caption fonts come with the site.
   'font-src': ["'self'"],
-  // The visitor-stats beacon reports back to Cloudflare.
-  'connect-src': ["'self'", 'https://cloudflareinsights.com'],
+  // A logo from a web address is fetched from where it is (only when someone gives one), and the
+  // visitor-stats beacon reports back to Cloudflare.
+  'connect-src': ["'self'", 'https:'],
   // The scanner runs in a worker built next to the page; the service worker is /sw.js.
   'worker-src': ["'self'"],
   'manifest-src': ["'self'"],
@@ -112,6 +115,9 @@ function serviceWorker(): Plugin {
           if (name.endsWith('.map')) continue
           hash.update(name)
           hash.update(item.type === 'chunk' ? item.code : item.source)
+          // of the caption fonts only the Latin letters are kept up front; the worker keeps the
+          // others as they're used
+          if (name.endsWith('.woff2') && !/-latin-400-normal-[^/]*\.woff2$/.test(name)) continue
           if (name !== 'index.html') files.push('/' + name)
         }
         for (const name of PUBLIC_OFFLINE) {
