@@ -4,7 +4,7 @@
 // file or Randomize).
 
 import type { QrArt } from '../qr/art'
-import { levelHint, logoHint, versionHint } from '../qr/checks'
+import { dataChecks, levelHint, logoHint, versionHint, type DataCheck } from '../qr/checks'
 import { isLength, readColour, toHex } from '../qr/css'
 import {
   CORNER_DOT_TYPES,
@@ -25,9 +25,11 @@ import {
 } from '../qr/design'
 import { formatted, formattedFixed, roundTo } from '../qr/numbers'
 import type { QrLevel } from '../qr/tables'
+import { detect, type TemplateKind } from '../qr/templates'
 import { h, section, segmented } from './dom'
 import { CAPTION_FONTS } from './fonts'
 import { clipboardPicture, designPicture, forgetPicture } from './pictures'
+import { makeTemplatePicker } from './templates-ui'
 
 export interface DesignerHost {
   /** The design being made (the controls change it in place). */
@@ -40,6 +42,10 @@ export interface DesignerHost {
   replace(design: QrDesign): void
   /** A short note for the person, for a moment. */
   say(text: string, kind: 'good' | 'warn' | 'bad'): void
+  /** Opens a data template's form; what it writes becomes the text. */
+  template(kind: TemplateKind): void
+  /** The text, changed by one of the checks' fixes. */
+  useText(text: string): void
 }
 
 const LEVELS: { value: QrLevel; text: string; name: string }[] = [
@@ -176,6 +182,38 @@ export function makeDesigner(host: DesignerHost, firstText: string): Designer {
 
   const dataBox = h('textarea', { id: 'data', rows: 4, placeholder: 'Type or paste a link, or any text', 'aria-label': 'Data', spellcheck: 'false' })
   dataBox.value = firstText
+  // the list shows the template the text is (none while there's no text); Edit… opens that one
+  let shownTemplate: TemplateKind | null = null
+  const templates = makeTemplatePicker(
+    (kind) => host.template(kind),
+    () => host.template(shownTemplate ?? 'text')
+  )
+  // the checks on the typed text, each with its one-click fix; screen readers hear new ones (the
+  // same messages stay as they are while typing, and their fixes follow the text)
+  const checksBox = h('div', { class: 'data-checks', 'aria-live': 'polite', 'data-testid': 'data-checks' })
+  let checkedText: string | null = null
+  let checks: DataCheck[] = []
+  let checksSaid = ''
+
+  function showData(text: string): void {
+    shownTemplate = text.trim().length === 0 ? null : detect(text).kind
+    templates.show(shownTemplate)
+    if (text === checkedText) return
+    checkedText = text
+    checks = dataChecks(text)
+    const said = checks.map((c) => c.message).join('\n')
+    if (said === checksSaid) return
+    checksSaid = said
+    checksBox.replaceChildren(
+      ...checks.map((check, i) => {
+        const fix = h('button', { type: 'button', class: 'small' }, check.button)
+        fix.addEventListener('click', () => {
+          if (checks[i]) host.useText(checks[i].fixed)
+        })
+        return h('div', { class: 'data-check' }, h('p', { class: 'warn-text' }, '⚠ ' + check.message), fix)
+      })
+    )
+  }
 
   // ---------- Style ----------
 
@@ -424,7 +462,7 @@ export function makeDesigner(host: DesignerHost, firstText: string): Designer {
   )
   const frameSection = section('Frame', false, h('label', { class: 'check-row' }, frameOn, ' Add a frame with a caption'), framePanel)
   const sections = [
-    section('Data', true, dataBox),
+    section('Data', true, templates.el, dataBox, checksBox),
     section(
       'Style',
       true,
@@ -536,6 +574,7 @@ export function makeDesigner(host: DesignerHost, firstText: string): Designer {
   function showHints(): void {
     const d = host.design
     const art = host.art()
+    showData(d.data)
     levelLine.textContent = levelHint(d.level, d.data, art?.levelRaised ?? false)
     const v = versionHint(art)
     versionLine.textContent = v.text

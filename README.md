@@ -19,7 +19,7 @@ their browsers stay as they are. It's built in stages:
 1. **The page, a plain QR code, PNG and SVG, and the scan check.** *Done.* The page installs as an
    offline app.
 2. **The designer and every export.** *Done.*
-3. The data templates and Recent codes.
+3. **The data templates and Recent codes.** *Done.*
 4. The other barcodes and scanning (a picture, the clipboard, the camera).
 5. Batches and print sizes, with tests that the site and the PC app make the same files.
 
@@ -37,6 +37,13 @@ What's there so far:
   warnings are the PC app's, character for character.
 - Design files (`qr-code-config.json`) both ways, byte for byte as the PC app writes them, and the
   last design kept in the browser where the site always kept it.
+- 11 data templates (text, a web address, Wi-Fi, a contact card, email, phone, SMS, a place, an
+  event, a SEPA payment, a GS1 Digital Link): each one's form writes its code, and a code's text
+  fills its form again. Checks on the typed text with one-click fixes (spaces at the ends, a web
+  address without https://, tracking parameters). The same texts and words as the PC app.
+- Recent codes: the last 20 codes saved or copied, kept only in the browser (where the site has
+  always kept them, so earlier ones are still there), to open again or delete; a Wi-Fi password
+  is never shown in the list.
 - The scan check: every change is drawn the way it's saved and read back by a scanner (zxing-wasm,
   in a worker), like a phone camera reading the saved file, with warnings for low contrast,
   inverted colours, a see-through background and a thin quiet zone, and "What's in this code".

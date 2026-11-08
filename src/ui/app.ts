@@ -8,13 +8,16 @@ import { grouped, QrError } from '../qr/code'
 import { copyDesign, plainDesign, type QrDesign } from '../qr/design'
 import { DESIGN_FILE_NAME, DesignFileError, keptDesign, readDesign, writeDesign } from '../qr/design-file'
 import { codeText, fileName, jpgFile, markdown, paint, pdfFile, pictureSize, pngFile, svgFile, type TextStyle } from '../qr/export'
+import type { TemplateKind } from '../qr/templates'
 import { makeDesigner } from './designer'
 import { h } from './dom'
 import { download } from './download'
 import { canvasFamilies, loadFonts, PAGE_FONT } from './fonts'
 import { screenIcon } from './icons'
 import { pictureFor, picturesReady } from './pictures'
+import { makeRecent } from './recent-ui'
 import { CHECK_WORDS, ScanChecker, type CheckResult } from './scan-check'
+import { makeTemplateDialog } from './templates-ui'
 import { themeButton } from './theme'
 import { shownVersion, versionLine } from './version'
 
@@ -89,8 +92,10 @@ export function startApp(root: HTMLElement): void {
 
   const status = h('p', { class: 'status', 'aria-live': 'polite', 'data-testid': 'status' })
   let statusTimer = 0
-  function say(text: string, kind: 'good' | 'warn' | 'bad'): void {
-    status.textContent = text
+  /** A note under the code for a moment; `after` keeps what it said before (a save's "Saved …"). */
+  function say(text: string, kind: 'good' | 'warn' | 'bad', after = false): void {
+    const before = after && status.textContent ? status.textContent.replace(/\.$/, '') + '. ' : ''
+    status.textContent = before + text
     status.dataset.kind = kind
     clearTimeout(statusTimer)
     statusTimer = window.setTimeout(() => (status.textContent = ''), 8000)
@@ -118,17 +123,28 @@ export function startApp(root: HTMLElement): void {
     sizeHint
   )
 
+  // Recent codes: the codes saved or copied, to open again
+  const recent = makeRecent({
+    open: (d) => showOpened(d),
+    current: () => copyDesign(design),
+    say
+  })
+
   const codeCol = h(
     'section',
     { class: 'code-col', 'aria-label': 'Your code' },
     h('div', { class: 'stage' }, preview, stageNote),
     h('div', { class: 'readout' }, checkLine, warnLine, info),
     inCode,
-    h('div', { class: 'actions' }, copyButton, saveDesignButton, h('span', { class: 'file-button' }, openDesignButton, openDesignInput)),
+    h('div', { class: 'actions' }, copyButton, saveDesignButton, h('span', { class: 'file-button' }, openDesignButton, openDesignInput), recent.button),
     status,
+    recent.note,
     exportToggle,
     exportBox
   )
+
+  // the "Data to encode" window, opened from the Data section's templates
+  const templateDialog = makeTemplateDialog()
 
   // ---------- the settings ----------
 
@@ -149,7 +165,13 @@ export function startApp(root: HTMLElement): void {
         designer.show()
         update()
       },
-      say
+      say,
+      template: (kind) => void askTemplate(kind),
+      useText: (text) => {
+        setText(text)
+        designer.dataBox.focus()
+        designer.dataBox.setSelectionRange(text.length, text.length)
+      }
     },
     design.data
   )
@@ -213,7 +235,9 @@ export function startApp(root: HTMLElement): void {
     createPanel,
     scanPanel,
     footer,
-    textDialog.el
+    textDialog.el,
+    templateDialog.el,
+    recent.dialog
   )
   document.documentElement.dataset.pcLink = PC_LINK
 
@@ -381,6 +405,7 @@ export function startApp(root: HTMLElement): void {
     try {
       const ready = await readyArt()
       if (!ready) return
+      const shown = copyDesign(ready.design)
       const name = fileName(fileBox.value, kind)
       const blob =
         kind === 'png'
@@ -392,6 +417,7 @@ export function startApp(root: HTMLElement): void {
               : await pdfFile(ready, measure, name.replace(/\.pdf$/, ''), producer)
       download(blob, name)
       say(`Saved ${name}`, 'good')
+      void recent.remember(shown, ready)
     } catch (e) {
       say(`Couldn't save the file: ${e instanceof Error ? e.message : 'something went wrong'}`, 'bad')
     } finally {
@@ -406,12 +432,17 @@ export function startApp(root: HTMLElement): void {
       return
     }
     // the picture is made after the click, which some browsers ask for
+    let copied: { design: QrDesign; art: QrArt } | null = null
     const png = readyArt().then((ready) => {
       if (!ready) throw new Error('no code')
+      copied = { design: copyDesign(ready.design), art: ready }
       return pngFile(ready, measure)
     })
     navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]).then(
-      () => say('Copied the code as a picture.', 'good'),
+      () => {
+        say('Copied the code as a picture.', 'good')
+        if (copied) void recent.remember(copied.design, copied.art)
+      },
       () => say("The browser didn't let the page copy the picture. Save the PNG instead.", 'warn')
     )
   })
@@ -419,6 +450,8 @@ export function startApp(root: HTMLElement): void {
   saveDesignButton.addEventListener('click', () => {
     download(new Blob([writeDesign(design)], { type: 'application/json' }), DESIGN_FILE_NAME)
     say(`Saved ${DESIGN_FILE_NAME}`, 'good')
+    // a design saved with text in it goes to Recent codes too
+    void recent.remember(copyDesign(design), art)
   })
   openDesignButton.addEventListener('click', () => openDesignInput.click())
   openDesignInput.addEventListener('change', () => {
@@ -433,17 +466,40 @@ export function startApp(root: HTMLElement): void {
       return
     }
     try {
-      const d = readDesign(await file.text(), copyDesign(design))
-      changedByVisitor = true
-      designer.cancelPicks()
-      design = d
-      designer.show()
-      openedText = d.data
-      update()
+      showOpened(readDesign(await file.text(), copyDesign(design)))
       say(`Opened ${file.name}`, 'good')
     } catch (e) {
       say(e instanceof DesignFileError ? e.message : `Couldn't open ${file.name}.`, 'bad')
     }
+  }
+
+  /** A design opened (from a file or Recent codes) into the page, its text exactly as it was. */
+  function showOpened(d: QrDesign): void {
+    changedByVisitor = true
+    designer.cancelPicks()
+    design = d
+    designer.show()
+    openedText = d.data
+    update()
+  }
+
+  /**
+   * New text in the Data box, from a template's form or a check's fix: exactly as written (its
+   * CR LF line breaks too) until it's edited, as an opened design's is.
+   */
+  function setText(text: string): void {
+    designer.dataBox.value = text
+    openedText = text
+    changedByVisitor = true
+    update()
+  }
+
+  /** The "Data to encode" window for a template; what it writes becomes the code's text. */
+  async function askTemplate(kind: TemplateKind): Promise<void> {
+    const written = await templateDialog.ask(kind, textNow())
+    // cancelled, or nothing written: the text stays (an empty one never goes over it)
+    if (written) setText(written)
+    else designer.showHints()
   }
 
   // a picture dropped anywhere on the page is the logo; a design file opens

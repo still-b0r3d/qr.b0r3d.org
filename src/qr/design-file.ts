@@ -17,7 +17,7 @@ export const NOT_A_DESIGN = 'That file isn’t a b0r3d QR configuration.'
 /** A design file that can't be opened, and why. */
 export class DesignFileError extends Error {}
 
-type JsonObject = { [key: string]: JsonValue }
+export type JsonObject = { [key: string]: JsonValue }
 
 // ---------- writing ----------
 

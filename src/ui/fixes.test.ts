@@ -1,9 +1,36 @@
 import { describe, expect, it } from 'vitest'
+import { dataChecks, trackingNames, trimmedText } from '../qr/checks'
 import { plainDesign } from '../qr/design'
 import { DesignFileError, readDesign } from '../qr/design-file'
 import { formattedFixed } from '../qr/numbers'
 import { fitNumber } from './designer'
 import { looksLikeSvgText } from './pictures'
+import { typedTime } from './templates-ui'
+
+describe('found in review: stage 3', () => {
+  it('a date or time typed as the PC app reads it', () => {
+    expect(typedTime('date', ' 2027-12-31 ')).toBe('2027-12-31')
+    expect(typedTime('date', '2027-12-00')).toBe('')
+    expect(typedTime('date', '2028-02-29')).toBe('2028-02-29')
+    expect(typedTime('date', '2027-02-29')).toBe('')
+    expect(typedTime('datetime', '2026-02-28 9:05')).toBe('2026-02-28T09:05')
+    expect(typedTime('datetime', '2026-02-28T23:59')).toBe('2026-02-28T23:59')
+    expect(typedTime('datetime', '2026-02-30 10:00')).toBe('')
+    expect(typedTime('datetime', '2026-02-28 24:00')).toBe('')
+  })
+
+  it('a byte-order mark stays in a parameter’s name', () => {
+    expect(trackingNames('https://b0r3d.org/?%EF%BB%BFutm_source=x').names).toEqual([])
+  })
+
+  it('long texts are checked quickly', () => {
+    const started = performance.now()
+    expect(dataChecks('https://' + 'a'.repeat(40000) + ' x')).toEqual([])
+    expect(trimmedText('a' + ' '.repeat(40000) + 'b')).toBe('a' + ' '.repeat(40000) + 'b')
+    expect(dataChecks('a' + ' '.repeat(40000) + 'b')).toEqual([])
+    expect(performance.now() - started).toBeLessThan(500)
+  })
+})
 
 describe("what counts as an SVG file (the PC app's rule)", () => {
   it.each([

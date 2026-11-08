@@ -32,6 +32,11 @@ export function moonIcon(): SVGSVGElement {
   return icon('icon-moon', ['path', { d: 'M20 14.5A8.2 8.2 0 1 1 9.5 4a6.6 6.6 0 0 0 10.5 10.5Z' }])
 }
 
+/** A padlock, for a code with a password in it. */
+export function lockIcon(): SVGSVGElement {
+  return icon('icon-lock', ['path', { d: 'M6 11H18V20H6Z M8.5 11V8A3.5 3.5 0 0 1 15.5 8V11' }])
+}
+
 export function screenIcon(): SVGSVGElement {
   return icon(
     'icon-screen',
