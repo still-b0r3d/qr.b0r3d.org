@@ -13,7 +13,6 @@ import { makeDesigner } from './designer'
 import { h } from './dom'
 import { download } from './download'
 import { canvasFamilies, loadFonts, PAGE_FONT } from './fonts'
-import { screenIcon } from './icons'
 import { pictureFor, picturesReady } from './pictures'
 import { makeRecent } from './recent-ui'
 import { CHECK_WORDS, ScanChecker, type CheckResult } from './scan-check'
@@ -22,14 +21,11 @@ import { themeButton } from './theme'
 import { shownVersion, versionLine } from './version'
 
 const SOURCE_URL = 'https://github.com/still-b0r3d/qr.b0r3d.org'
+/** b0r3d QR for Windows: the same codes as a program for the PC (linked in the footer, as DeRes does). */
 const PC_URL = 'https://github.com/still-b0r3d/b0r3d-QR-PC'
 const FIRST_TEXT = 'https://b0r3d.org'
 /** Where this site has always kept the last design (without its text). */
 const KEPT_KEY = 'qrCodeConfig'
-
-/** Where the link to the PC app sits: at the top, in the footer, or both while that's being picked. */
-type PcLinkPlacement = 'top' | 'footer' | 'both'
-const PC_LINK: PcLinkPlacement = 'both'
 
 /**
  * The design kept from the last visit, or the plain one. `readable` is false when something was
@@ -179,7 +175,6 @@ export function startApp(root: HTMLElement): void {
 
   // ---------- the page ----------
 
-  const pcTop = h('a', { class: 'pc-link pc-link-top', href: PC_URL, 'data-testid': 'pc-link-top' }, screenIcon(), 'Get it for Windows')
   const createTab = h('button', { type: 'button', role: 'tab', id: 'tab-create', class: 'tab', 'aria-selected': 'true', 'aria-controls': 'panel-create' }, 'Create')
   const scanTab = h('button', { type: 'button', role: 'tab', id: 'tab-scan', class: 'tab', 'aria-selected': 'false', 'aria-controls': 'panel-scan' }, 'Scan')
   const createPanel = h('main', { class: 'layout', id: 'panel-create', role: 'tabpanel', 'aria-labelledby': 'tab-create' }, codeCol, settings)
@@ -196,13 +191,6 @@ export function startApp(root: HTMLElement): void {
     { class: 'app-footer' },
     h(
       'p',
-      { class: 'pc-link-footer', 'data-testid': 'pc-link-footer' },
-      'Also for Windows: ',
-      h('a', { href: PC_URL }, 'b0r3d QR for PC'),
-      ', the same codes as a program that never goes online.'
-    ),
-    h(
-      'p',
       { class: 'privacy' },
       'The app loads nothing from any other site, except a logo from a web address you give it, and what you type stays in your browser. Like the rest of b0r3d.org, the site counts visits.'
     ),
@@ -213,6 +201,8 @@ export function startApp(root: HTMLElement): void {
       versionLine(version, commit),
       ' · ',
       h('a', { href: SOURCE_URL }, 'Source'),
+      ' · ',
+      h('a', { href: PC_URL, 'data-testid': 'pc-link' }, 'Windows app'),
       ' · ',
       h('a', { href: './LICENSE.txt' }, 'Licence'),
       ' · ',
@@ -229,7 +219,7 @@ export function startApp(root: HTMLElement): void {
       { class: 'top' },
       h('a', { class: 'brand', href: './' }, h('img', { src: cupUrl, alt: '', width: 40, height: 40 }), h('h1', { class: 'brand-title' }, 'b0r3d QR')),
       h('nav', { class: 'tabs', role: 'tablist', 'aria-label': 'Make or read codes' }, createTab, scanTab),
-      h('div', { class: 'top-right' }, pcTop, themeButton())
+      h('div', { class: 'top-right' }, themeButton())
     ),
     h('p', { class: 'banner' }, 'Static codes: nothing expires, nothing is sent anywhere.'),
     createPanel,
@@ -239,7 +229,6 @@ export function startApp(root: HTMLElement): void {
     templateDialog.el,
     recent.dialog
   )
-  document.documentElement.dataset.pcLink = PC_LINK
 
   // ---------- drawing ----------
 

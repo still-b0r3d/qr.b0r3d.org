@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { dataChecks, trackingNames, trimmedText } from '../qr/checks'
+import { colourWarnings, dataChecks, roundedDown, trackingNames, trimmedText } from '../qr/checks'
 import { plainDesign } from '../qr/design'
 import { DesignFileError, readDesign } from '../qr/design-file'
 import { formattedFixed } from '../qr/numbers'
 import { fitNumber } from './designer'
 import { looksLikeSvgText } from './pictures'
 import { typedTime } from './templates-ui'
+
+describe('the contrast ratio, rounded down (the owner’s call, 2026-11-08)', () => {
+  it('red on white reads 3.9:1, never 4:1', () => {
+    expect(colourWarnings(['#ff0000', '#ff0000', '#ff0000'], '#ffffff', null, 4)[0]).toBe(
+      'Low contrast (3.9:1) between the code and its background. Dark on light with at least 4:1 scans best.'
+    )
+  })
+  it('keeps exact tenths, and drops the rest', () => {
+    expect([2.3, 3.999, 3.95, 1.05, 1, 2.0999999].map(roundedDown)).toEqual([2.3, 3.9, 3.9, 1, 1, 2])
+  })
+})
 
 describe('found in review: stage 3', () => {
   it('a date or time typed as the PC app reads it', () => {

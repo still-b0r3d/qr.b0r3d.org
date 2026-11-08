@@ -34,6 +34,21 @@ interface PcArt {
 }
 
 const sha = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex')
+
+/**
+ * The PC app's warnings with the contrast ratio as the website now writes it: rounded down, where
+ * the PC app's 0.8 rounds to the nearest (the owner's call, 2026-11-08; the PC app follows in its
+ * next version). The website's number is the PC app's, or 0.1 less.
+ */
+function roundedDown(pc: string[], ours: string[]): string[] {
+  return pc.map((w, i) => {
+    const theirs = /^Low contrast \(([\d.]+):1\)(.*)$/.exec(w)
+    const mine = /^Low contrast \(([\d.]+):1\)/.exec(ours[i] ?? '')
+    if (!theirs || !mine) return w
+    const gap = Number(theirs[1]) - Number(mine[1])
+    return gap > -1e-9 && gap < 0.1 + 1e-9 ? `Low contrast (${mine[1]}:1)${theirs[2]}` : w
+  })
+}
 const withCup = (s: string) => s.split('{{CUP}}').join(PRESET_LOGOS.cup)
 
 // the page's measure of a caption's lines: here, a short caption's words always fit its column
@@ -55,7 +70,8 @@ describe('the same pictures as the PC app', () => {
     expect(sha(svg)).toBe(c.svgSha256)
     expect([art.W, art.H]).toEqual([c.W, c.H])
     expect(art.captionLines).toEqual(c.lines)
-    expect(designWarnings(d)).toEqual(c.warnings)
+    const warnings = designWarnings(d)
+    expect(warnings).toEqual(roundedDown(c.warnings ?? [], warnings))
     expect(inTheCode(art).flat()).toEqual(c.inCode)
     expect([art.cleared, art.logoModules, art.logoSpaceUsed]).toEqual([c.cleared, c.logoModules, c.logoSpaceUsed])
     expect([art.levelUsed, art.levelRaised]).toEqual([c.levelUsed, c.raised])

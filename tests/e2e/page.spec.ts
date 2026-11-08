@@ -150,14 +150,16 @@ test.describe('around the code', () => {
     const line = page.getByTestId('app-version')
     const shown = /^\d+\.\d+\.0$/.test(version) ? version.replace(/\.0$/, '') : version
     await expect(line).toContainText(`b0r3d QR v${shown} · Build: `)
-    await expect(line).toHaveText(/ · Build: (dev|[0-9a-f]{7}) · Source · Licence · Notices$/)
+    await expect(line).toHaveText(/ · Build: (dev|[0-9a-f]{7}) · Source · Windows app · Licence · Notices$/)
     await expect(line.getByRole('link', { name: 'Source' })).toHaveAttribute('href', 'https://github.com/still-b0r3d/qr.b0r3d.org')
+    // the PC app is linked here, after Source, as img.b0r3d.org links its own (the owner's call, 2026-11-08)
+    await expect(line.getByRole('link', { name: 'Windows app' })).toHaveAttribute('href', 'https://github.com/still-b0r3d/b0r3d-QR-PC')
+    await expect(page.locator('header a[href*="b0r3d-QR-PC"]')).toHaveCount(0)
     const licence = await request.get(await line.getByRole('link', { name: 'Licence' }).getAttribute('href') ?? '')
     expect(await licence.text()).toContain('Licensor: b0r3d.org')
     const notices = await request.get(await line.getByRole('link', { name: 'Notices' }).getAttribute('href') ?? '')
     expect(await notices.text()).toContain('zxing-wasm')
     await expect(page.locator('footer a', { hasText: '← b0r3d.org' })).toHaveAttribute('href', 'https://b0r3d.org')
-    await expect(page.getByTestId('pc-link-footer').getByRole('link')).toHaveAttribute('href', 'https://github.com/still-b0r3d/b0r3d-QR-PC')
   })
 
   test('the Scan tab says what comes next', async ({ page }) => {

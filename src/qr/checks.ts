@@ -7,7 +7,7 @@ import { characterCount, grouped } from './code'
 import { readColour, type Rgba } from './css'
 import type { QrDesign } from './design'
 import { isPlainAscii } from './encoder'
-import { formatted, roundHalfAway, roundTo } from './numbers'
+import { formatted, roundTo } from './numbers'
 import type { QrLevel } from './tables'
 
 export function levelName(level: QrLevel): string {
@@ -109,6 +109,9 @@ function contrast(a: number, b: number): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
 }
 
+/** A contrast ratio rounded down to one place (a hair of slack, so 2.3 stays 2.3 in binary). */
+export const roundedDown = (ratio: number): number => Math.floor(ratio * 10 + 1e-9) / 10
+
 /**
  * The warnings for a code's colours: its parts, its background, a frame's background (null
  * without a frame), and its quiet zone in modules (null with a frame, which gives the room).
@@ -136,8 +139,10 @@ export function colourWarnings(colours: string[], backgroundCss: string, frameBa
     if (parts.some((p) => luminance(p) > back)) warnings.push("Light code on a dark background: many phone cameras can't read inverted codes.")
     const worst = Math.min(...parts.map((p) => contrast(luminance(p), back)))
     if (worst < 4) {
+      // the ratio rounded down, so a warning never says 4:1 (red on white is 3.998:1, shown 3.9:1;
+      // the owner's call, 2026-11-08: the PC app does the same from its next version)
       warnings.push(
-        `Low contrast (${formatted(roundHalfAway(worst * 10) / 10, 1)}:1) between the code and its background. Dark on light with at least 4:1 scans best.`
+        `Low contrast (${formatted(roundedDown(worst), 1)}:1) between the code and its background. Dark on light with at least 4:1 scans best.`
       )
     }
   }

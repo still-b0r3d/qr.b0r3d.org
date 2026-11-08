@@ -89,7 +89,7 @@ test.describe('the designer', () => {
   test('colours warn by the same rule as the PC app', async ({ page }) => {
     await openPage(page)
     await page.getByLabel('Dot colour', { exact: true }).fill('#ff0000')
-    await expect(page.getByTestId('warnings')).toHaveText('⚠ Low contrast (4:1) between the code and its background. Dark on light with at least 4:1 scans best.')
+    await expect(page.getByTestId('warnings')).toHaveText('⚠ Low contrast (3.9:1) between the code and its background. Dark on light with at least 4:1 scans best.')
     await page.getByLabel('Dot colour', { exact: true }).fill('#000000')
     await expect(page.getByTestId('warnings')).toBeHidden()
     await page.locator('#with-background').uncheck()

@@ -37,11 +37,3 @@ export function lockIcon(): SVGSVGElement {
   return icon('icon-lock', ['path', { d: 'M6 11H18V20H6Z M8.5 11V8A3.5 3.5 0 0 1 15.5 8V11' }])
 }
 
-export function screenIcon(): SVGSVGElement {
-  return icon(
-    'icon-screen',
-    ['rect', { x: '3', y: '4.5', width: '18', height: '12', rx: '1.5' }],
-    ['line', { x1: '12', y1: '16.5', x2: '12', y2: '20' }],
-    ['line', { x1: '8', y1: '20', x2: '16', y2: '20' }]
-  )
-}

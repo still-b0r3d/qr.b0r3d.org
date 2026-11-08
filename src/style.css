@@ -197,32 +197,6 @@ button:disabled {
   display: none;
 }
 
-.pc-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 14px;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.pc-link .icon {
-  width: 18px;
-  height: 18px;
-}
-
-.pc-link:hover {
-  border-color: var(--accent);
-}
-
-:root[data-pc-link='footer'] .pc-link-top,
-:root[data-pc-link='top'] .pc-link-footer {
-  display: none;
-}
-
 .banner {
   width: fit-content;
   max-width: 100%;
@@ -1122,10 +1096,6 @@ input[type='range'] {
   font-family: 'Courier New', Courier, monospace;
   font-size: 16px;
   letter-spacing: 1px;
-}
-
-.pc-link-footer {
-  color: var(--text);
 }
 
 /* ---------- phones: the code in a bar at the bottom ---------- */
