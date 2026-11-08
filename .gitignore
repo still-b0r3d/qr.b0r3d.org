@@ -1,49 +1,8 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
 node_modules
-.DS_Store
 dist
-dist-ssr
-coverage
 *.local
-crowdin.yml
-
-/cypress/videos/
-/cypress/screenshots/
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-dev-dist
-
 .env
 
 # Playwright
 test-results/
 playwright-report/
-tests/e2e/temp-downloads/
-tests/e2e/temp-parity/
-# Screenshot baselines exist for Linux only; a run on Windows or macOS writes
-# its own next to them (and fails those four tests).
-tests/e2e/**/*-win32.png
-tests/e2e/**/*-darwin.png
-
-# Storybook
-storybook-static/
-package-lock.json
-
-# Vitest browser-mode failure screenshots
-__screenshots__/

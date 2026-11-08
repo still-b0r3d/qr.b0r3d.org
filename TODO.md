@@ -7,7 +7,7 @@ Ideas worth considering, not decided yet.
 ### Test the UTF-8 marker (ECI 26) on real phones
 
 - **What:** since 1.0 the QR settings have an opt-in "Mark the text as
-  UTF-8 (ECI 26)" (zint makes the grid, see `src/lib/qr-code/eci.ts`). It is
+  UTF-8 (ECI 26)" (the grid follows zint's rules, see `src/qr/encoder.ts`). It is
   off by default because some older readers mishandle ECI or show the
   designator as text.
 - **To do:** scan marked codes with iOS Camera, Google Lens, Samsung Camera,

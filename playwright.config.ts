@@ -1,65 +1,37 @@
 import { defineConfig, devices } from '@playwright/test'
 
-/**
- * See https://playwright.dev/docs/test-configuration.
- */
+// End-to-end checks against the dev server. The server command runs node directly (not through
+// pnpm), which also works on Windows; a server already running on the port is reused.
+//
+//   pnpm test:e2e                      # Chromium
+//   pnpm test:e2e --project=webkit     # Safari's engine
+//
+// E2E_PORT picks another port, so a second copy of the repository (a git worktree) can run its
+// own server instead of reusing the first one's. E2E_BASE_URL runs the checks against a built
+// copy (vite preview) or the live site instead, with no server started.
+const PORT = Number(process.env.E2E_PORT ?? 5175)
+const BASE = process.env.E2E_BASE_URL
+
 export default defineConfig({
-  testDir: './tests/e2e',
-  /* Run tests in files in parallel */
+  testDir: 'tests/e2e',
+  timeout: 60_000,
   fullyParallel: true,
-  /* Fail the build on CI if you accidentally left test.only in the source code. */
-  forbidOnly: !!process.env.CI,
-  /* Retry on CI only */
-  retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
-  expect: {
-    toHaveScreenshot: {
-      /* Caption text antialiasing differs slightly across Linux font stacks
-         (e.g. the Playwright Docker image used to generate the committed
-         snapshots vs the GitHub Actions runner) — observed ~0.45% on framed
-         exports. Real rendering regressions diff far more than 1%. */
-      maxDiffPixelRatio: 0.01
-    }
-  },
-  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
+  reporter: 'list',
   use: {
-    /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:5173',
-
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
-    trace: 'on-first-retry',
-
-    /* Capture screenshot only when a test fails. */
-    screenshot: 'only-on-failure'
+    baseURL: BASE ?? `http://127.0.0.1:${PORT}/`,
+    acceptDownloads: true
   },
-
-  /* Configure projects for major browsers */
+  webServer: BASE
+    ? undefined
+    : {
+        command: `node node_modules/vite/bin/vite.js --port ${PORT} --strictPort --host 127.0.0.1`,
+        url: `http://127.0.0.1:${PORT}/`,
+        reuseExistingServer: true,
+        timeout: 60_000
+      },
   projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] }
-    }
-
-    // {
-    //   name: 'firefox',
-    //   use: { ...devices['Desktop Firefox'] },
-    // },
-
-    // {
-    //   name: 'webkit',
-    //   use: { ...devices['Desktop Safari'] },
-    // },
-  ],
-
-  /* Run your local dev server before starting the tests */
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    stdout: 'pipe',
-    stderr: 'pipe'
-  }
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'phone', use: { ...devices['Pixel 7'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } }
+  ]
 })
