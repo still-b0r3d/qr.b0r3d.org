@@ -1,6 +1,8 @@
-// A design's files, sized as b0r3d QR sizes them: PNG, JPG and PDF at the design's size, the SVG at
-// the drawing's own size, and the code as text. With a frame, the pictures are sized from the frame
-// as the page lays its caption out in a column, grown to the design's width.
+// A design's files, sized as b0r3d QR sizes them: PNG, JPG and PDF at the design's size (with whole
+// pixels per module if asked) or the print size, the SVG at the drawing's own size or the print
+// size's lengths, and the code as text. With a frame, the pictures are sized from the frame as the
+// page lays its caption out in a column, grown to the design's width. Pictures carry their
+// resolution, as the PC app's do: the print size's, else 96 DPI.
 
 import { paintStyle, previewLines, type Canvas2D, type Measure, type QrArt } from './art'
 import { grouped, makeQrCode } from './code'
@@ -8,6 +10,7 @@ import { lengthPixels } from './css'
 import { DEFAULT_CAPTION, besideCode, isTransparent, type QrDesign } from './design'
 import { roundHalfAway, roundTo } from './numbers'
 import { makePdf, POINTS_PER_INCH } from './pdf'
+import { inches, printApplies, printLength, printPixelWidth, withDpi, type PrintSize } from './print'
 import type { QrLevel } from './tables'
 
 export interface PictureSize {
@@ -15,16 +18,38 @@ export interface PictureSize {
   readonly scale: number
   readonly width: number
   readonly height: number
+  /** the resolution the picture carries */
+  readonly dpi: number
 }
 
-/** The PNG, JPG and clipboard size: the design's, or with a frame, the frame's as the page shows it. */
-export function pictureSize(art: QrArt, measure: Measure): PictureSize {
+/** How the files come out besides the design: a print size (when on), and whole pixels per module. */
+export interface Output {
+  print: PrintSize | null
+  wholePixels: boolean
+}
+
+export const screenOutput = (): Output => ({ print: null, wholePixels: false })
+
+/**
+ * The PNG, JPG and clipboard size: the print size when it applies; else the design's (whole pixels
+ * per module if asked), or with a frame, the frame's as the page shows it.
+ */
+export function pictureSize(art: QrArt, measure: Measure, output: Output = screenOutput()): PictureSize {
+  const print = output.print
+  if (printApplies(print)) {
+    const w = printPixelWidth(print)
+    return { scale: w / art.W, width: w, height: roundHalfAway((w * art.H) / art.W), dpi: print.dpi }
+  }
   const d = art.design
   const f = d.frame
   if (!f) {
-    const side = Math.max(d.width, d.height)
+    let side = Math.max(d.width, d.height)
+    if (output.wholePixels) {
+      const modules = art.code.size + 2 * Math.max(0, d.margin)
+      side = Math.max(1, roundHalfAway(side / modules)) * modules
+    }
     const scale = side / art.S
-    return { scale, width: Math.floor(art.W * scale + 1e-9), height: Math.floor(art.H * scale + 1e-9) }
+    return { scale, width: Math.floor(art.W * scale + 1e-9), height: Math.floor(art.H * scale + 1e-9), dpi: 96 }
   }
   // with a frame the size comes from the page's 200 px picture of it, grown to the width
   const p = lengthPixels(f.padding, 0)
@@ -43,7 +68,7 @@ export function pictureSize(art: QrArt, measure: Measure): PictureSize {
   }
   const grow = d.width / 200
   const k = Math.max((pw * grow) / art.W, (ph * grow) / art.H)
-  return { scale: k, width: Math.floor(art.W * k + 1e-9), height: Math.floor(art.H * k + 1e-9) }
+  return { scale: k, width: Math.floor(art.W * k + 1e-9), height: Math.floor(art.H * k + 1e-9), dpi: 96 }
 }
 
 /**
@@ -57,7 +82,7 @@ export function tooBig(width: number, height: number): string | null {
   if (width * height <= MOST_PIXELS) return null
   return (
     `That picture would be ${grouped(width)} × ${grouped(height)} pixels, more than b0r3d QR draws at once ` +
-    '(100 million). Use a smaller picture size or caption.'
+    '(100 million). Use a smaller picture size, print size or caption.'
   )
 }
 
@@ -108,8 +133,8 @@ export function blobOf(canvas: HTMLCanvasElement, type: string, quality?: number
  * The picture as a canvas, at the picture size; for a JPG (which can't see through) on white paper,
  * with the background over it.
  */
-export function pictureCanvas(art: QrArt, measure: Measure, jpg = false): HTMLCanvasElement {
-  const size = pictureSize(art, measure)
+export function pictureCanvas(art: QrArt, measure: Measure, jpg = false, output: Output = screenOutput()): HTMLCanvasElement {
+  const size = pictureSize(art, measure, output)
   const { canvas, ctx } = canvasFor(size.width, size.height)
   const background = art.design.background
   const under = jpg ? ['#ffffff', ...(isTransparent(background) ? [] : [paintStyle(ctx, background)])] : []
@@ -117,34 +142,53 @@ export function pictureCanvas(art: QrArt, measure: Measure, jpg = false): HTMLCa
   return canvas
 }
 
-export function pngFile(art: QrArt, measure: Measure): Promise<Blob> {
-  return blobOf(pictureCanvas(art, measure), 'image/png')
+/** The PNG. (Its size and resolution are taken once, before it's made.) */
+export async function pngFile(art: QrArt, measure: Measure, output: Output = screenOutput()): Promise<Blob> {
+  const dpi = pictureSize(art, measure, output).dpi
+  return withDpi(await blobOf(pictureCanvas(art, measure, false, output), 'image/png'), dpi)
 }
 
 /** The JPG, at the quality browsers use when none is asked for. */
-export function jpgFile(art: QrArt, measure: Measure): Promise<Blob> {
-  return blobOf(pictureCanvas(art, measure, true), 'image/jpeg', 0.92)
+export async function jpgFile(art: QrArt, measure: Measure, output: Output = screenOutput()): Promise<Blob> {
+  const dpi = pictureSize(art, measure, output).dpi
+  return withDpi(await blobOf(pictureCanvas(art, measure, true, output), 'image/jpeg', 0.92), dpi)
 }
 
-export function svgFile(art: QrArt): Blob {
-  return new Blob([art.toSvg()], { type: 'image/svg+xml' })
+/** The SVG text: with a print size, its width and height on paper ("40mm"), the drawing's own size kept in its viewBox. */
+export function svgText(art: QrArt, print: PrintSize | null = null): string {
+  if (!printApplies(print)) return art.toSvg()
+  return art.toSvg(printLength(print.width, print.unit), printLength((print.width * art.H) / art.W, print.unit))
+}
+
+export function svgFile(art: QrArt, print: PrintSize | null = null): Blob {
+  return new Blob([svgText(art, print)], { type: 'image/svg+xml' })
 }
 
 /**
- * The PDF: the picture without loss, its page exactly the picture's size on paper (96 px to the
- * inch), drawn at up to 300 dots to the inch.
+ * The PDF: the picture without loss, its page exactly the picture's size on paper: the print size,
+ * or the screen size at 96 px to the inch drawn at up to 300 dots to the inch.
  */
-export async function pdfFile(art: QrArt, measure: Measure, title: string, producer: string): Promise<Blob> {
-  const screen = pictureSize(art, measure)
-  const inches = screen.width / 96
-  const dpi = Math.max(1, Math.min(300, Math.floor(4096 / inches)))
-  const w = roundHalfAway(inches * dpi)
-  const h = roundHalfAway((w * art.H) / art.W)
-  const { canvas, ctx } = canvasFor(w, h)
-  paint(ctx, art, w / art.W, canvas.width, canvas.height)
+export async function pdfFile(art: QrArt, measure: Measure, title: string, producer: string, output: Output = screenOutput()): Promise<Blob> {
+  let canvas: HTMLCanvasElement
+  let paper: number
+  if (printApplies(output.print)) {
+    canvas = pictureCanvas(art, measure, false, output)
+    paper = inches(output.print)
+  } else {
+    const screen = pictureSize(art, measure, { print: null, wholePixels: output.wholePixels })
+    paper = screen.width / 96
+    const dpi = Math.max(1, Math.min(300, Math.floor(4096 / paper)))
+    const w = roundHalfAway(paper * dpi)
+    const h = roundHalfAway((w * art.H) / art.W)
+    const drawn = canvasFor(w, h)
+    paint(drawn.ctx, art, w / art.W, w, h)
+    canvas = drawn.canvas
+  }
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error("This browser couldn't draw the picture.")
   const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height)
   release(canvas)
-  const pageWidth = roundTo(inches * POINTS_PER_INCH, 2)
+  const pageWidth = roundTo(paper * POINTS_PER_INCH, 2)
   const pageHeight = roundTo((pageWidth * pixels.height) / pixels.width, 2)
   return makePdf(pixels.data, pixels.width, pixels.height, pageWidth, pageHeight, title || 'QR code', producer)
 }

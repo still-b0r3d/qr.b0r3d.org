@@ -4,20 +4,26 @@
 
 import cupUrl from '../../b0r3d-brand/cup.png?url'
 import { captionFont, QrArt, setCanvasFamilies, type Measure, type Pictures } from '../qr/art'
-import { BarcodeArt, barcodeJpg, barcodePdf, barcodePng, barcodeRows, barcodeSvgFile, barcodeWarnings, type BarcodeLook } from '../qr/barcode-svg'
+import { withMargin } from '../qr/barcode-make'
+import { BarcodeArt, barcodeJpg, barcodeModulePx, barcodePdf, barcodePng, barcodeRows, barcodeSvgFile, barcodeWarnings, type BarcodeLook } from '../qr/barcode-svg'
 import { barcodeFormat, type BarcodeType } from '../qr/barcodes'
 import { designWarnings, EVERYTHING_LINE, infoLine, inTheCode } from '../qr/checks'
 import { grouped, QrError } from '../qr/code'
+import { readColour } from '../qr/css'
 import { copyDesign, plainDesign, type QrDesign } from '../qr/design'
 import { DESIGN_FILE_NAME, DesignFileError, keptDesign, readDesign, writeDesign } from '../qr/design-file'
-import { codeText, fileName, jpgFile, markdown, paint, pdfFile, pictureSize, pngFile, svgFile, type TextStyle } from '../qr/export'
+import { codeText, fileName, jpgFile, markdown, paint, pdfFile, pictureSize, pngFile, svgFile, type Output, type TextStyle } from '../qr/export'
+import { formatted, roundHalfEven } from '../qr/numbers'
+import { barcodePrintLine, printApplies, printPixelWidth, printProblem, qrPrintLine, type PrintSize } from '../qr/print'
 import { barcodeSettings } from '../qr/recent'
 import type { ScannedCode } from '../qr/scanned'
 import type { TemplateKind } from '../qr/templates'
 import { BarcodeMaker, type Made } from './barcode-maker'
 import { codeTypeList, makeBarcodePanel } from './barcode-ui'
+import { makeBatchDialog } from './batch-ui'
 import { makeDesigner } from './designer'
 import { h } from './dom'
+import { makePrintControls } from './print-ui'
 import { download } from './download'
 import { canvasFamilies, loadFonts, PAGE_FONT } from './fonts'
 import { pictureFor, picturesReady } from './pictures'
@@ -34,6 +40,29 @@ const PC_URL = 'https://github.com/still-b0r3d/b0r3d-QR-PC'
 const FIRST_TEXT = 'https://b0r3d.org'
 /** Where this site has always kept the last design (without its text). */
 const KEPT_KEY = 'qrCodeConfig'
+/** Where the site keeps the QR codes' print size, and (new) whole pixels per module. */
+const PRINT_KEY = 'b0r3d-qr.print-settings'
+const WHOLE_PIXELS_KEY = 'b0r3d-qr.whole-pixels'
+
+/**
+ * After what a print size makes. (The PC app also says "and to copies": it copies its own PNG,
+ * resolution and all, where a browser makes the copy again without it.)
+ */
+const APPLIES = ' Applies to every saved picture, SVG and PDF; copies get the same pixels.'
+
+/** "40 mm", "1.575 in" */
+const paperWidth = (p: PrintSize): string => `${formatted(p.width, p.unit === 'in' ? 3 : 2)} ${p.unit}`
+
+/** a colour nothing shows through */
+const opaque = (css: string): boolean => readColour(css)?.a === 255
+
+function keptFlag(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === 'true'
+  } catch {
+    return false
+  }
+}
 
 /**
  * The design kept from the last visit, or the plain one. `readable` is false when something was
@@ -86,12 +115,15 @@ export function startApp(root: HTMLElement): void {
 
   // how wide a caption's line is, as the page lays it out: in its own font, or the page's
   const measurer = document.createElement('canvas').getContext('2d')
-  const measure: Measure = (line) => {
-    if (!measurer) return 0
-    const f = design.frame?.fontFamily
-    measurer.font = f && f.trim() ? captionFont(f) : `18px ${PAGE_FONT}`
-    return measurer.measureText(line).width
-  }
+  const measureFor =
+    (d: QrDesign): Measure =>
+    (line) => {
+      if (!measurer) return 0
+      const f = d.frame?.fontFamily
+      measurer.font = f && f.trim() ? captionFont(f) : `18px ${PAGE_FONT}`
+      return measurer.measureText(line).width
+    }
+  const measure: Measure = (line) => measureFor(design)(line)
 
   // ---------- the code ----------
 
@@ -132,6 +164,7 @@ export function startApp(root: HTMLElement): void {
   ) as Record<(typeof formats)[number], HTMLButtonElement>
   const sizeHint = h('p', { class: 'hint', 'data-testid': 'size-hint' })
   const exportToggle = h('button', { type: 'button', class: 'export-toggle', 'aria-expanded': 'false' }, 'Save')
+  const batchButton = h('button', { type: 'button', class: 'small', 'data-testid': 'batch-export' }, 'Batch export…')
 
   const exportBox = h(
     'section',
@@ -140,7 +173,8 @@ export function startApp(root: HTMLElement): void {
     h('label', { for: 'file-name' }, 'File name'),
     fileBox,
     h('div', { class: 'save-buttons', role: 'group', 'aria-label': 'Save as' }, ...formats.map((f) => saveButtons[f])),
-    sizeHint
+    sizeHint,
+    h('div', { class: 'batch-open' }, batchButton, h('span', { class: 'hint' }, 'A file for every row of a CSV, in one zip.'))
   )
 
   // Recent codes: the codes saved or copied, to open again
@@ -201,7 +235,27 @@ export function startApp(root: HTMLElement): void {
     },
     design.data
   )
-  // the other barcodes' settings, kept while the page is open
+  // whole pixels per module and the print size: how the files come out, kept apart from designs
+  // (the print size where the site has always kept it), as the PC app keeps them in its settings
+  let wholePixels = keptFlag(WHOLE_PIXELS_KEY)
+  const wholeBox = h('input', { type: 'checkbox', id: 'whole-pixels' })
+  wholeBox.checked = wholePixels
+  wholeBox.addEventListener('change', () => {
+    wholePixels = wholeBox.checked
+    try {
+      localStorage.setItem(WHOLE_PIXELS_KEY, String(wholePixels))
+    } catch {
+      // private browsing: it lasts while the page is open
+    }
+    showQrSizes()
+  })
+  const pictureHint = h('p', { class: 'hint', 'data-testid': 'picture-size-hint' })
+  const qrPrint = makePrintControls('print', PRINT_KEY, () => showQrSizes())
+  designer.sizeExtras.append(h('label', { class: 'check-row', for: 'whole-pixels' }, wholeBox, ' Whole pixels per module'), pictureHint, qrPrint.el)
+  // (a copy of the print size as it is now: one changed while a file is made doesn't reach it)
+  const output = (): Output => ({ print: { ...qrPrint.print }, wholePixels })
+
+  // the other barcodes' settings (kept between visits)
   const barcodePanel = makeBarcodePanel({ changed: () => refreshBarcode(), scaled: () => showBarcodeSizes() })
   for (const s of barcodePanel.sections) s.hidden = true
   const codeTypeSelect = codeTypeList((type) => chooseCodeType(type))
@@ -324,6 +378,9 @@ export function startApp(root: HTMLElement): void {
     preview.height = height
     preview.style.width = `${width / dpr}px`
     preview.style.height = `${height / dpr}px`
+    // a see-through code on a checkerboard, as the site has always shown it: on the dark page its
+    // dark dots would vanish
+    preview.classList.toggle('see-through', !opaque(art.design.background))
     paint(ctx, art, width / art.W, width, height)
   }
 
@@ -348,6 +405,7 @@ export function startApp(root: HTMLElement): void {
     preview.height = a.H * per
     preview.style.width = `${(a.W * per * shrink) / dpr}px`
     preview.style.height = `${(a.H * per * shrink) / dpr}px`
+    preview.classList.toggle('see-through', look.transparent || !opaque(look.background))
     a.draw(ctx, per, look.color, look.transparent ? null : look.background)
   }
 
@@ -360,10 +418,20 @@ export function startApp(root: HTMLElement): void {
     })
   }
 
-  function picturesNow(): Pictures {
-    const logo = pictureFor(design.logo, drawSoon)
-    const frame = design.frame?.backgroundImage ? pictureFor(design.frame.backgroundImage, drawSoon) : { picture: null, problem: null }
+  function picturesOf(d: QrDesign, whenLoaded: () => void): Pictures {
+    const logo = pictureFor(d.logo, whenLoaded)
+    const frame = d.frame?.backgroundImage ? pictureFor(d.frame.backgroundImage, whenLoaded) : { picture: null, problem: null }
     return { logo: logo.picture, logoProblem: logo.problem, frame: frame.picture, frameProblem: frame.problem }
+  }
+
+  const picturesNow = (): Pictures => picturesOf(design, drawSoon)
+
+  /** A design (a batch's row) drawn once its own pictures and its caption's font are here. */
+  async function artFor(d: QrDesign): Promise<QrArt> {
+    await picturesReady([d.logo, d.frame?.backgroundImage])
+    const f = d.frame
+    if (f?.fontFamily) await loadFonts(f.fontFamily, f.text)
+    return new QrArt(d, picturesOf(d, () => {}))
   }
 
   // a caption's web font, fetched for its text, then drawn again
@@ -436,7 +504,7 @@ export function startApp(root: HTMLElement): void {
     showButtons()
     if (!art) {
       clearStage(stageNote.textContent ?? '', stageNote.dataset.problem === 'true')
-      sizeHint.textContent = 'Saved pictures come out at the picture size.'
+      showQrSizes()
       return
     }
     preview.hidden = false
@@ -450,12 +518,40 @@ export function startApp(root: HTMLElement): void {
     showWarnings(warnings)
     inCodeRows.replaceChildren(...inTheCode(art).flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)]))
     inCodeText.value = art.code.text
-    const size = pictureSize(art, measure)
-    sizeHint.textContent =
-      `PNG and JPG: ${grouped(size.width)} × ${grouped(size.height)} pixels. PDF: that size on paper (96 pixels ` +
-      'to the inch), drawn at up to 300 dots an inch. SVG: drawn as shapes, sharp at any size.'
+    showQrSizes()
     showCheck('checking')
     checker.check(art, showCheck)
+  }
+
+  /** How big the files come out: under the picture size, in the Save box, and under the print size. */
+  function showQrSizes(): void {
+    if (codeType) return
+    const p = qrPrint.print
+    if (!art) {
+      pictureHint.textContent = 'Saved pictures come out at this size.'
+      sizeHint.textContent = 'Saved pictures come out at the picture size.'
+    } else {
+      const size = pictureSize(art, measure, output())
+      let hint = `Saves as ${grouped(size.width)} × ${grouped(size.height)} pixels`
+      if (printApplies(p)) hint += ', at the print size below.'
+      else if (wholePixels && !design.frame) {
+        const per = roundHalfEven(size.width / (art.code.size + 2 * Math.max(0, design.margin)))
+        hint += `: ${per} ${per === 1 ? 'pixel' : 'pixels'} per module, so every square is sharp.`
+      } else hint += '.'
+      pictureHint.textContent = hint
+      sizeHint.textContent = printApplies(p)
+        ? `PNG and JPG: ${grouped(size.width)} × ${grouped(size.height)} pixels at ${p.dpi} DPI. PDF and SVG: ${paperWidth(p)} wide on paper.`
+        : `PNG and JPG: ${grouped(size.width)} × ${grouped(size.height)} pixels. PDF: that size on paper (96 pixels ` +
+          'to the inch), drawn at up to 300 dots an inch. SVG: drawn as shapes, sharp at any size.'
+    }
+    if (!p.on) return
+    const problem = printProblem(p)
+    if (problem) qrPrint.show(problem + ' Files use the picture size until then.', null)
+    else if (!art) qrPrint.show(`${grouped(printPixelWidth(p))} px across.` + APPLIES, null)
+    else {
+      const said = qrPrintLine(art, p)
+      if (said) qrPrint.show(said.line + APPLIES, said.warning)
+    }
   }
 
   // ---------- the other barcodes ----------
@@ -521,7 +617,7 @@ export function startApp(root: HTMLElement): void {
       showWarnings(barcodeWarnings(look))
       // (what's stored in a typewriter font, as the PC app shows it)
       inCodeRows.replaceChildren(
-        ...barcodeRows(format, made.prepared, expected, barcode.art).flatMap(([k, v]) => [h('dt', null, k), h('dd', { class: k === 'Stored' ? 'mono' : null }, v)])
+        ...barcodeRows(format, made.prepared, expected, barcode.art, withMargin(type, look)).flatMap(([k, v]) => [h('dt', null, k), h('dd', { class: k === 'Stored' ? 'mono' : null }, v)])
       )
       showCheck('checking')
       checker.checkBarcode(barcode.art, look, format, expected, showCheck)
@@ -530,20 +626,31 @@ export function startApp(root: HTMLElement): void {
     showBarcodeSizes()
   }
 
-  /** How big the files come out, under the size and in the Save box. */
+  /** How big the files come out: under the size, in the Save box, and under the print size. */
   function showBarcodeSizes(): void {
+    const p = barcodePanel.print
     if (!barcode) {
       barcodePanel.showScale('A module is the narrowest bar or square.')
       sizeHint.textContent = 'Saved pictures come out at the size set in Barcode settings.'
-      return
+    } else {
+      const s = barcodePanel.look.scale
+      barcodePanel.showScale(`Downloads are ${barcode.art.W * s} × ${barcode.art.H * s} px. Use Size for print for a physical size.`)
+      const px = barcodeModulePx(barcode.art.barcode, barcodePanel.look, p)
+      const width = barcode.art.W * px
+      const height = barcode.art.H * px
+      sizeHint.textContent = printApplies(p)
+        ? `PNG and JPG: ${grouped(width)} × ${grouped(height)} pixels at ${p.dpi} DPI. PDF and SVG: at the print size, every bar whole pixels.`
+        : `PNG and JPG: ${grouped(width)} × ${grouped(height)} pixels. PDF: that size on paper (96 pixels to the inch), ` +
+          'drawn at about 300 dots an inch. SVG: drawn as shapes, sharp at any size.'
     }
-    const s = barcodePanel.look.scale
-    const width = barcode.art.W * s
-    const height = barcode.art.H * s
-    barcodePanel.showScale(`Downloads are ${width} × ${height} px.`)
-    sizeHint.textContent =
-      `PNG and JPG: ${grouped(width)} × ${grouped(height)} pixels. PDF: that size on paper (96 pixels to the inch), ` +
-      'drawn at about 300 dots an inch. SVG: drawn as shapes, sharp at any size.'
+    if (!p.on) return
+    const problem = printProblem(p)
+    if (problem) barcodePanel.showPrint(problem + ' Files use Size until then.', null)
+    else if (!barcode) barcodePanel.showPrint(`${grouped(printPixelWidth(p))} px across.` + APPLIES, null)
+    else {
+      const said = barcodePrintLine(p, barcode.art.W, barcode.art.H)
+      barcodePanel.showPrint(said.line + APPLIES, said.warning)
+    }
   }
 
   /** The barcode for what's typed now: typing still waiting is taken, and a barcode being made is waited for. */
@@ -593,6 +700,24 @@ export function startApp(root: HTMLElement): void {
   const producer = `b0r3d QR ${shownVersion(version).slice(1)}`
   let saving = false
 
+  // Batch export: a file for every row of a CSV, with the design or barcode settings as they are now
+  const batch = makeBatchDialog({ art: artFor, measure: measureFor, producer })
+  root.append(batch.el)
+  function openBatch(file?: File): void {
+    batch.open(
+      {
+        barcode: codeType,
+        design: copyDesign(design),
+        logoFetched: picturesNow().logo !== null,
+        look: { ...barcodePanel.look },
+        output: { ...output(), print: { ...qrPrint.print } },
+        barcodePrint: { ...barcodePanel.print }
+      },
+      file
+    )
+  }
+  batchButton.addEventListener('click', () => openBatch())
+
   async function save(kind: (typeof formats)[number]): Promise<void> {
     if (kind === 'txt') {
       if (art && !codeType) textDialog.open()
@@ -609,14 +734,15 @@ export function startApp(root: HTMLElement): void {
       if (!ready) return
       const shown = copyDesign(ready.design)
       const name = fileName(fileBox.value, kind)
+      const files = output()
       const blob =
         kind === 'png'
-          ? await pngFile(ready, measure)
+          ? await pngFile(ready, measure, files)
           : kind === 'jpg'
-            ? await jpgFile(ready, measure)
+            ? await jpgFile(ready, measure, files)
             : kind === 'svg'
-              ? svgFile(ready)
-              : await pdfFile(ready, measure, name.replace(/\.pdf$/, ''), producer)
+              ? svgFile(ready, files.print)
+              : await pdfFile(ready, measure, name.replace(/\.pdf$/, ''), producer, files)
       download(blob, name)
       say(`Saved ${name}`, 'good')
       void recent.remember(shown, ready)
@@ -633,15 +759,16 @@ export function startApp(root: HTMLElement): void {
     const shown = await readyBarcode()
     if (!shown) return
     const look: BarcodeLook = { ...barcodePanel.look }
+    const print = { ...barcodePanel.print }
     const name = fileName(fileBox.value, kind, barcodeFormat(shown.type).id)
     const blob =
       kind === 'png'
-        ? await barcodePng(shown.art, look)
+        ? await barcodePng(shown.art, look, print)
         : kind === 'jpg'
-          ? await barcodeJpg(shown.art, look)
+          ? await barcodeJpg(shown.art, look, print)
           : kind === 'svg'
-            ? barcodeSvgFile(shown.art, look)
-            : await barcodePdf(shown.art, look, name.replace(/\.pdf$/, ''), producer)
+            ? barcodeSvgFile(shown.art, look, print)
+            : await barcodePdf(shown.art, look, name.replace(/\.pdf$/, ''), producer, print)
     download(blob, name)
     say(`Saved ${name}`, 'good')
     void recent.rememberBarcode(shown.type, shown.text, look, shown.art.barcode)
@@ -659,13 +786,13 @@ export function startApp(root: HTMLElement): void {
           if (!shown) throw new Error('no barcode')
           const look: BarcodeLook = { ...barcodePanel.look }
           remember = () => void recent.rememberBarcode(shown.type, shown.text, look, shown.art.barcode)
-          return barcodePng(shown.art, look)
+          return barcodePng(shown.art, look, { ...barcodePanel.print })
         })
       : readyArt().then((ready) => {
           if (!ready) throw new Error('no code')
           const kept = copyDesign(ready.design)
           remember = () => void recent.remember(kept, ready)
-          return pngFile(ready, measure)
+          return pngFile(ready, measure, output())
         })
     navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]).then(
       () => {
@@ -763,6 +890,11 @@ export function startApp(root: HTMLElement): void {
     })
     if (files.length === 1 && isDesignFile(files[0])) {
       void openDesign(files[0])
+      return
+    }
+    // a CSV on the Create tab is a batch, as the PC app takes one on its Make tab
+    if (files.length === 1 && /\.csv$/i.test(files[0].name) && !createPanel.hidden && !folders.has(files[0])) {
+      openBatch(files[0])
       return
     }
     if (!createPanel.hidden && !codeType && over(designer.logoSection, e)) {

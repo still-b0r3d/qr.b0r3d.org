@@ -6,8 +6,10 @@
 import { readColour, toHex } from '../qr/css'
 import { BARCODE_GROUPS, BARCODE_FORMATS, barcodeFormat, type BarcodeType } from '../qr/barcodes'
 import { DEFAULT_BAR_HEIGHT, MAX_BAR_HEIGHT, MAX_SCALE, MIN_BAR_HEIGHT, MIN_SCALE, defaultLook, wholeSetting, type BarcodeLook } from '../qr/barcode-svg'
+import type { PrintSize } from '../qr/print'
 import { barcodeSettings } from '../qr/recent'
 import { h, section } from './dom'
+import { makePrintControls } from './print-ui'
 
 /** Where the site keeps the barcode settings (the 8 of them, as JSON), once one is changed. */
 export const KEPT_LOOK_KEY = 'b0r3d-qr.barcode-settings'
@@ -55,6 +57,10 @@ export interface BarcodePanel {
   showError(message: string | null): void
   /** The line under the size: how big the files are. */
   showScale(hint: string): void
+  /** the barcodes' print size (kept apart from QR codes', as the site keeps it) */
+  readonly print: PrintSize
+  /** the line under the print size and its warning */
+  showPrint(line: string, warning: string | null): void
 }
 
 /** The Code type list: QR codes, then the barcode types in their groups. */
@@ -112,8 +118,12 @@ export function makeBarcodePanel(host: BarcodeHost): BarcodePanel {
 
   const dataBox = h('textarea', { id: 'barcode-data', rows: 3, 'aria-label': 'Data to encode', spellcheck: 'false', 'data-testid': 'barcode-data' })
   const hint = h('p', { class: 'hint', 'data-testid': 'barcode-hint' })
-  // what's wrong is said at once (the PC app's is an assertive live region)
-  const error = h('p', { class: 'hint bad-text', hidden: true, role: 'alert', 'data-testid': 'barcode-error' })
+  // What's wrong is said at once, but once for each kind of trouble: not again at every pause while
+  // only its count changes ("this has 7", "this has 8"). The PC app's next version does the same.
+  const error = h('p', { class: 'hint bad-text', hidden: true, 'data-testid': 'barcode-error' })
+  const errorSaid = h('p', { class: 'sr-only', 'aria-live': 'assertive', 'data-testid': 'barcode-error-said' })
+  let saidKind = ''
+  let saidTimer = 0
   let typing = 0
   dataBox.addEventListener('input', () => {
     texts.set(type, dataBox.value)
@@ -165,6 +175,7 @@ export function makeBarcodePanel(host: BarcodeHost): BarcodePanel {
     host.scaled()
   })
   const scaleHint = h('p', { class: 'hint', 'data-testid': 'barcode-scale-hint' })
+  const printControls = makePrintControls('barcode-print', 'b0r3d-qr.barcode-print-settings', () => host.scaled())
 
   const quietRow = h('div', null, quietZones.row, quietNote)
   const linear = h(
@@ -177,7 +188,7 @@ export function makeBarcodePanel(host: BarcodeHost): BarcodePanel {
   )
 
   const sections = [
-    section('Data', true, dataBox, hint, error),
+    section('Data', true, dataBox, hint, error, errorSaid),
     section(
       'Barcode settings',
       true,
@@ -187,7 +198,8 @@ export function makeBarcodePanel(host: BarcodeHost): BarcodePanel {
       h('div', { class: 'row' }, h('span', { class: 'label-inline' }, 'Background'), background),
       transparent.row,
       h('div', { class: 'row' }, h('label', { for: 'barcode-scale' }, 'Size (pixels per module)'), scale),
-      scaleHint
+      scaleHint,
+      printControls.el
     ),
     h('p', { class: 'hint barcode-credit' }, 'Barcodes are made with zint and checked with ZXing-C++; the Notices link at the bottom of the page has their licences.')
   ]
@@ -249,9 +261,21 @@ export function makeBarcodePanel(host: BarcodeHost): BarcodePanel {
     showError(message) {
       if (error.textContent !== (message ?? '')) error.textContent = message ?? ''
       error.hidden = message === null
+      // Said when the mistake is another one, not as its count goes up with each key ("this has
+      // 7", "this has 8"): a check digit or a GS1 field that changes is another mistake. The line
+      // read out goes again a moment later, so it isn't read twice when the page is read through.
+      const kind = message === null ? '' : message.replace(/this has [0-9]+/g, 'this has #')
+      if (kind !== saidKind) {
+        saidKind = kind
+        errorSaid.textContent = message ?? ''
+        clearTimeout(saidTimer)
+        if (message !== null) saidTimer = window.setTimeout(() => (errorSaid.textContent = ''), 5000)
+      }
     },
     showScale(text) {
       scaleHint.textContent = text
-    }
+    },
+    print: printControls.print,
+    showPrint: (line, warning) => printControls.show(line, warning)
   }
 }

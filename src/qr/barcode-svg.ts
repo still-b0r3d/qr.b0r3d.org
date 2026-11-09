@@ -9,6 +9,7 @@ import { grouped } from './code'
 import { blobOf, canvasFor, MOST_PIXELS, release } from './export'
 import { roundHalfEven, roundTo } from './numbers'
 import { makePdf, POINTS_PER_INCH } from './pdf'
+import { barcodeGuidance, printApplies, printSized, withDpi, type PrintSize } from './print'
 import { type BarcodeFormat } from './barcodes'
 
 export const DEFAULT_BAR_HEIGHT = 50
@@ -216,7 +217,7 @@ const unescape = (text: string): string => text.replace(/&lt;/g, '<').replace(/&
 /** Why a barcode picture this size isn't drawn, or null. */
 export function barcodeTooBig(width: number, height: number): string | null {
   if (width * height <= MOST_PIXELS) return null
-  return `That picture would be ${grouped(width)} × ${grouped(height)} pixels, more than b0r3d QR draws at once (100 million). Use a smaller size.`
+  return `That picture would be ${grouped(width)} × ${grouped(height)} pixels, more than b0r3d QR draws at once (100 million). Use a smaller size or print size.`
 }
 
 /** The picture at `scale` pixels per module; a JPG gets the background (white for none) under it. */
@@ -232,24 +233,51 @@ export function barcodeCanvas(art: BarcodeArt, look: BarcodeLook, scale: number,
   return canvas
 }
 
-export const barcodePng = (art: BarcodeArt, look: BarcodeLook): Promise<Blob> => blobOf(barcodeCanvas(art, look, look.scale), 'image/png')
+/** Pixels per module in the files: the print size's when it applies, else Size. */
+export const barcodeModulePx = (b: BarcodeSvg, look: BarcodeLook, print: PrintSize | null): number =>
+  printApplies(print) ? barcodeGuidance(print, b.width, b.height).modulePx : look.scale
+
+/** the resolution the pictures carry: the print size's, else 96 DPI */
+const pictureDpi = (print: PrintSize | null): number => (printApplies(print) ? print.dpi : 96)
+
+export async function barcodePng(art: BarcodeArt, look: BarcodeLook, print: PrintSize | null = null): Promise<Blob> {
+  const dpi = pictureDpi(print)
+  return withDpi(await blobOf(barcodeCanvas(art, look, barcodeModulePx(art.barcode, look, print)), 'image/png'), dpi)
+}
 
 /** The JPG at 0.95, as b0r3d QR saves barcodes. */
-export const barcodeJpg = (art: BarcodeArt, look: BarcodeLook): Promise<Blob> => blobOf(barcodeCanvas(art, look, look.scale, true), 'image/jpeg', 0.95)
+export async function barcodeJpg(art: BarcodeArt, look: BarcodeLook, print: PrintSize | null = null): Promise<Blob> {
+  const dpi = pictureDpi(print)
+  return withDpi(await blobOf(barcodeCanvas(art, look, barcodeModulePx(art.barcode, look, print), true), 'image/jpeg', 0.95), dpi)
+}
 
-export const barcodeSvgFile = (art: BarcodeArt, look: BarcodeLook): Blob => new Blob([styledSvg(art.barcode, look.color, paperOf(look), look.scale)], { type: 'image/svg+xml' })
+/** The SVG in colour; with a print size every module keeps its printed width, written in the unit ("38.269mm"). */
+export function barcodeSvgText(b: BarcodeSvg, look: BarcodeLook, print: PrintSize | null = null): string {
+  const svg = styledSvg(b, look.color, paperOf(look), barcodeModulePx(b, look, print))
+  if (!printApplies(print)) return svg
+  const widthMm = barcodeGuidance(print, b.width, b.height).moduleMm * b.width
+  return printSized(svg, print.unit === 'in' ? widthMm / 25.4 : widthMm, print.unit)
+}
+
+export const barcodeSvgFile = (art: BarcodeArt, look: BarcodeLook, print: PrintSize | null = null): Blob =>
+  new Blob([barcodeSvgText(art.barcode, look, print)], { type: 'image/svg+xml' })
 
 /**
- * The PDF: the PNG without loss at its size on paper (96 px to the inch), drawn at whole pixels per
+ * The PDF: the PNG without loss at its size on paper. With a print size every module keeps its
+ * printed width; without, the page is the PNG's size at 96 px to the inch, drawn at whole pixels per
  * module near 300 DPI (but no more than 4096 px wide) so the bars stay sharp.
  */
-export async function barcodePdf(art: BarcodeArt, look: BarcodeLook, title: string, producer: string): Promise<Blob> {
-  let modulePx = look.scale
-  const sharper = Math.ceil((modulePx * 300) / 96)
-  const widest = Math.floor(4096 / art.W)
-  const pageInches = (art.W * modulePx) / 96
-  modulePx = Math.max(modulePx, Math.min(sharper, widest))
-  const dpi = (art.W * modulePx) / pageInches
+export async function barcodePdf(art: BarcodeArt, look: BarcodeLook, title: string, producer: string, print: PrintSize | null = null): Promise<Blob> {
+  let modulePx = barcodeModulePx(art.barcode, look, print)
+  let dpi: number
+  if (printApplies(print)) dpi = print.dpi
+  else {
+    const sharper = Math.ceil((modulePx * 300) / 96)
+    const widest = Math.floor(4096 / art.W)
+    const pageInches = (art.W * modulePx) / 96
+    modulePx = Math.max(modulePx, Math.min(sharper, widest))
+    dpi = (art.W * modulePx) / pageInches
+  }
   const canvas = barcodeCanvas(art, look, modulePx)
   const ctx = canvas.getContext('2d')!
   const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height)
@@ -262,8 +290,8 @@ export async function barcodePdf(art: BarcodeArt, look: BarcodeLook, title: stri
 /** The warnings for a barcode: its colours (zint always gives it its quiet zones, so none about that). */
 export const barcodeWarnings = (look: BarcodeLook): string[] => colourWarnings([look.color], paperOf(look), null, 4)
 
-/** "What's in this code" for a barcode. */
-export function barcodeRows(format: BarcodeFormat, prepared: string, expected: string, art: BarcodeArt): [string, string][] {
+/** "What's in this code" for a barcode (`margin`: whether it has its blank margin). */
+export function barcodeRows(format: BarcodeFormat, prepared: string, expected: string, art: BarcodeArt, margin = true): [string, string][] {
   const rows: [string, string][] = [
     ['Type', format.label + (format.gs1 ? ' (GS1 data)' : '')],
     ['Stored', expected]
@@ -271,7 +299,7 @@ export function barcodeRows(format: BarcodeFormat, prepared: string, expected: s
   // the check digit added: what's stored after what was typed, or where the type writes the number
   // anew (an ISBN-10 as its EAN-13, a 6-digit UPC-E with its number system first) the last digit
   if (expected !== prepared) rows.push(['Check digit', (expected.startsWith(prepared) ? expected.slice(prepared.length) : expected.slice(-1)) + ', added for you'])
-  rows.push(['Size', `${art.W} × ${art.H} modules, blank margin included`])
+  rows.push(['Size', `${art.W} × ${art.H} modules, ${margin ? 'blank margin included' : 'no blank margin'}`])
   return rows
 }
 

@@ -97,6 +97,12 @@ describe('barcodes come out as the PC app makes them', () => {
       expect(made).toEqual({ error: c.error })
       return
     }
+    // "Include quiet zones" is only for the barcodes with bars, where its box is shown: a 2D code
+    // keeps its margin (the PC app takes it off too, until its next version does as the website)
+    if (!f.linear && !c.options.quietZones) {
+      expect(made).toEqual(await make(type, c.text, { ...c.options, quietZones: true }))
+      return
+    }
     expect('barcode' in made).toBe(true)
     const b = (made as { barcode: BarcodeSvg }).barcode
     if (c.svg) expect(b.svg).toBe(c.svg)

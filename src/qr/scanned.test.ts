@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { FoundRead } from '../scan/protocol'
-import { cropOf, filesSummary, inReadingOrder, labelOf, pictureSummary, problemLine, readAs, scannedCode, summaryOf } from './scanned'
+import { writeBarcode } from '../test/zint'
+import { askFor } from './barcode-make'
+import { defaultLook } from './barcode-svg'
+import type { BarcodeType } from './barcodes'
+import { cropOf, filesSummary, inReadingOrder, labelOf, madeAgainChecked, pictureSummary, problemLine, readAs, scannedCode, summaryOf } from './scanned'
 
 // What the Scan tab says about a code, in b0r3d QR for PC's words (its Reader, FoundCode and
 // MainWindow.Scan), from what zxing-wasm's reader gives.
@@ -57,6 +61,30 @@ describe('each code’s card', () => {
     // (small letters are made as the capitals Code 39 holds)
     expect(made('Code39', 'abc', ']A0')).toEqual(['Text', 'Code 39', 'code39', true])
     expect(made('DataBarOmni', '(01)09506000134352', ']e0')).toEqual(['Product number', 'GS1 DataBar', null, false])
+  })
+
+  it('Make this code again only for a barcode zint makes too, as the PC app runs zint first', async () => {
+    // GS1-128 data the type's own checks take (there's no check digit to check), but zint refuses
+    const odd = scannedCode(read('Code128', '(00)123', { identifier: ']C1', contentType: 'GS1' }), 'a.png', 100, 100)
+    const ean = scannedCode(read('EAN13', '9506000134352', { identifier: ']E0' }), 'a.png', 100, 100)
+    const qr = scannedCode(read('QRCode', 'hello', { identifier: ']Q1' }), 'a.png', 100, 100)
+    expect([odd.barcode, odd.canMakeAgain]).toEqual(['gs1-128', true])
+    // zint itself, as the page's barcode maker has it
+    const zint = async (type: BarcodeType, text: string): Promise<boolean> => {
+      const asked = askFor(type, text, defaultLook())
+      if ('error' in asked) return false
+      const w = await writeBarcode(asked.ask.text, { format: asked.ask.format as never, options: asked.ask.options, scale: 1, addHRT: asked.ask.addHRT, addQuietZones: asked.ask.addQuietZones })
+      return !w.error
+    }
+    const asked: string[] = []
+    const checked = await madeAgainChecked([odd, ean, qr], async (type, text) => {
+      asked.push(`${type} ${text}`)
+      return zint(type, text)
+    })
+    expect(checked.map((c) => c.canMakeAgain)).toEqual([false, true, true])
+    expect(asked).toEqual(['gs1-128 (00)123', 'ean13 9506000134352'])
+    // zint couldn't be asked (it didn't load): the button stays
+    expect((await madeAgainChecked([odd], async () => null)).map((c) => c.canMakeAgain)).toEqual([true])
   })
 
   it('where it was: a box round its corners with some room, as the PC app crops it', () => {

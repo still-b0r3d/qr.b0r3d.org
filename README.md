@@ -21,7 +21,7 @@ their browsers stay as they are. It's built in stages:
 2. **The designer and every export.** *Done.*
 3. **The data templates and Recent codes.** *Done.*
 4. **The other barcodes and scanning (a picture, the clipboard, the camera).** *Done.*
-5. Batches and print sizes, with tests that the site and the PC app make the same files.
+5. **Batches and print sizes, with tests that the site and the PC app make the same files.** *Done.*
 
 What's there so far:
 
@@ -59,6 +59,21 @@ What's there so far:
   found says what it is (a link, a Wi-Fi network, a product number...) without showing a password,
   and can be copied, opened (after a question that shows where the link goes) or made again on the
   Create tab. Pictures never leave the browser.
+- Print sizes: a width on paper in millimetres or inches at 150, 300 or 600 DPI, for QR codes and
+  for barcodes (every bar a whole number of pixels), with what it makes and a warning when modules
+  or bars come out too small to print well; every PNG and JPG carries its resolution, the PDF's page
+  and the SVG's lengths are the size on paper. Whole pixels per module for sharp squares. Both kept
+  where the site has always kept them.
+- Batch export: a CSV file (from a spreadsheet, or one of the examples) made into a file for every
+  row, all in one zip: QR codes with the Create tab's design, each with its own caption and font if
+  the file gives them, contact cards from a file of contacts, or barcodes with the barcode
+  settings; PNG, JPG, SVG, PDF or text. The rows are read and the files named as this site always
+  named them; the rows that can't be made are listed with why, each row can be looked at first, and
+  every file is read back out of the finished zip and scanned.
+- The same files as the PC app: its tests compare the site's batches (1,028 CSV files, their rows,
+  names and plans) and its pictures (203 designs and barcodes at print sizes: their sizes,
+  resolutions and PDF pages, and their pixels where both draw them sharp) with what the PC app
+  makes.
 - Dark and light looks (dark by default), kept as before.
 - Works offline once visited, and installs as an app.
 

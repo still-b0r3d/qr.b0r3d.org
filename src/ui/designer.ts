@@ -166,6 +166,8 @@ export interface Designer {
   readonly dataBox: HTMLTextAreaElement
   /** where a picture dropped becomes the logo */
   readonly logoSection: HTMLElement
+  /** the end of Size and print, for what isn't kept in a design (whole pixels, the print size) */
+  readonly sizeExtras: HTMLElement
   /** Puts the design back into every control. */
   show(): void
   /** The hints that follow the code (logo room, level, size). */
@@ -449,6 +451,8 @@ export function makeDesigner(host: DesignerHost, firstText: string): Designer {
   const markerNote = h('p', { class: 'hint warn-text', hidden: true, 'data-testid': 'marker-note' }, "Couldn't add the UTF-8 marker, so this code is made without it.")
   const quiet = numberBox('quiet-zone', QUIET, (v) => set(() => (host.design.margin = v)))
   const size = numberBox('picture-size', SIZE, (v) => set(() => (host.design.width = host.design.height = v)))
+  // whole pixels per module and the print size, which aren't part of a design (the page puts them here)
+  const sizeExtras = h('div', { class: 'size-extras' })
 
   // ---------- the sections ----------
 
@@ -492,7 +496,8 @@ export function makeDesigner(host: DesignerHost, firstText: string): Designer {
       markerNote,
       row('Quiet zone (modules)', quiet),
       hint('4 is the standard (ISO/IEC 18004): scanners need blank space around a code to find it.'),
-      row('Picture size (px)', size)
+      row('Picture size (px)', size),
+      sizeExtras
     )
   ]
 
@@ -605,7 +610,7 @@ export function makeDesigner(host: DesignerHost, firstText: string): Designer {
     frameTicket++
   }
 
-  return { sections, dataBox, logoSection, show, showHints, useLogo, cancelPicks }
+  return { sections, dataBox, logoSection, sizeExtras, show, showHints, useLogo, cancelPicks }
 }
 
 function shapeRow(label: string, shape: HTMLSelectElement, colour: HTMLInputElement): HTMLElement {

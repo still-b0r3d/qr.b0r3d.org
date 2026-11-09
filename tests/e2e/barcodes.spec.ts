@@ -68,7 +68,7 @@ test.describe('the other barcodes', () => {
     await openPage(page)
     await chooseType(page, 'ean13')
     await expect(rows(page)).toHaveText('TypeEAN-13Stored9506000134352Check digit2, added for youSize113 × 59 modules, blank margin included')
-    await expect(page.getByTestId('barcode-scale-hint')).toHaveText('Downloads are 452 × 236 px.')
+    await expect(page.getByTestId('barcode-scale-hint')).toHaveText('Downloads are 452 × 236 px. Use Size for print for a physical size.')
     // text and design files are QR codes' only, as in the PC app
     await expect(page.getByTestId('save-txt')).toBeDisabled()
     await expect(page.getByTestId('save-design')).toBeDisabled()
@@ -89,7 +89,7 @@ test.describe('the other barcodes', () => {
 
     // two pixels a module
     await page.locator('#barcode-scale').fill('2')
-    await expect(page.getByTestId('barcode-scale-hint')).toHaveText('Downloads are 226 × 118 px.')
+    await expect(page.getByTestId('barcode-scale-hint')).toHaveText('Downloads are 226 × 118 px. Use Size for print for a physical size.')
     const small = PNG.sync.read((await save(page, 'png')).bytes)
     expect([small.width, small.height]).toEqual([226, 118])
     // a name typed is kept, whatever the type
@@ -191,7 +191,7 @@ test.describe('the other barcodes', () => {
     await chooseType(page, 'upca')
     await barcodeSettings(page).getByLabel('Show the text under the bars').uncheck()
     await page.locator('#barcode-scale').fill('3')
-    await expect(page.getByTestId('barcode-scale-hint')).toHaveText('Downloads are 339 × 165 px.')
+    await expect(page.getByTestId('barcode-scale-hint')).toHaveText('Downloads are 339 × 165 px. Use Size for print for a physical size.')
     await save(page, 'png')
     await expect(page.getByTestId('recent-note')).toBeVisible()
     // other settings, back to QR codes, then the barcode from Recent codes: its type, text and settings

@@ -4,8 +4,12 @@
 // where it was, what it is, what it holds, and Copy text, Open link… (after a question that shows
 // where it goes) and Make this code again. Pictures never leave the browser.
 
+import { askFor } from '../qr/barcode-make'
+import { defaultLook } from '../qr/barcode-svg'
+import type { BarcodeType } from '../qr/barcodes'
 import { linkWarnings, webLink } from '../qr/kinds'
-import { filesSummary, inReadingOrder, labelOf, pictureSummary, problemLine, scannedCode, summaryOf, type ScannedCode } from '../qr/scanned'
+import { filesSummary, inReadingOrder, labelOf, madeAgainChecked, pictureSummary, problemLine, scannedCode, summaryOf, type ScannedCode } from '../qr/scanned'
+import { BarcodeWriter } from './barcode-writer'
 import { makeCamera } from './camera'
 import { h } from './dom'
 import { PictureProblem, PictureReader, ReaderUnavailable, ReadStopped, pictureFrom, pixelsOf, thumbnailOf } from './picture-reader'
@@ -47,6 +51,18 @@ interface Run {
 
 export function makeScanTab(host: ScanHost): ScanTab {
   const reader = new PictureReader()
+  // zint, asked whether it makes a scanned barcode again (null: it couldn't be asked)
+  const writer = new BarcodeWriter()
+  const zintMakes = async (type: BarcodeType, text: string): Promise<boolean | null> => {
+    const asked = askFor(type, text, defaultLook())
+    if ('error' in asked) return false
+    try {
+      const w = await writer.write(asked.ask)
+      return w.error === null && w.svg !== null
+    } catch {
+      return null
+    }
+  }
 
   // ---------- where to read from ----------
 
@@ -217,6 +233,7 @@ export function makeScanTab(host: ScanHost): ScanTab {
     if (current !== run) return
     current = null
     reader.release()
+    writer.release()
     showBusy(false)
     show(lines)
     const any = lines.some((l) => !l.code.isProblem)
@@ -226,7 +243,11 @@ export function makeScanTab(host: ScanHost): ScanTab {
   /** the codes in a picture, in reading order, each with its thumbnail */
   async function codesIn(canvas: HTMLCanvasElement, source: string): Promise<Shown[]> {
     const found = await reader.read(pixelsOf(canvas), 'all')
-    return inReadingOrder(found.map((f) => scannedCode(f, source, canvas.width, canvas.height))).map((code) => ({ code, thumbnail: thumbnailOf(canvas, code.box) }))
+    const codes = await madeAgainChecked(
+      inReadingOrder(found.map((f) => scannedCode(f, source, canvas.width, canvas.height))),
+      zintMakes
+    )
+    return codes.map((code) => ({ code, thumbnail: thumbnailOf(canvas, code.box) }))
   }
 
   /** what went wrong, in a few words: the browser's own, quoted once */
@@ -301,9 +322,11 @@ export function makeScanTab(host: ScanHost): ScanTab {
 
   // ---------- the buttons ----------
 
-  const camera = makeCamera(reader, (code, thumbnail) => {
+  const camera = makeCamera(reader, async (code, thumbnail) => {
+    const [checked] = await madeAgainChecked([code], zintMakes)
+    writer.release()
     host.showTab()
-    show([{ code, thumbnail }])
+    show([{ code: checked, thumbnail }])
     setStatus(`1 code from ${code.source}`, 'text')
   })
   cameraButton.addEventListener('click', () => {

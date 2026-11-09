@@ -7,7 +7,7 @@ declare module 'pngjs' {
     data: Buffer
     static sync: {
       read(bytes: Buffer): PNG
-      write(png: PNG): Buffer
+      write(png: PNG, options?: { deflateLevel?: number }): Buffer
     }
     /** copies a part of one picture into another */
     static bitblt(src: PNG, dst: PNG, srcX: number, srcY: number, width: number, height: number, deltaX: number, deltaY: number): void

@@ -240,6 +240,36 @@ button:disabled {
   display: block;
 }
 
+/* a see-through code on a checkerboard, so its dots show on the dark page too */
+.preview.see-through {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #cccccc 25%, transparent 25%), linear-gradient(-45deg, #cccccc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #cccccc 75%), linear-gradient(-45deg, transparent 75%, #cccccc 75%);
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-size: 16px 16px;
+}
+
+/* the print size, under Size and print and under Barcode settings */
+.print-panel {
+  margin-top: 8px;
+}
+
+.print-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.print-row input[type='number'] {
+  width: 110px;
+}
+
 .stage-note {
   margin: 0;
   padding: 16px;
@@ -999,10 +1029,21 @@ input[type='range'] {
   background: var(--field);
 }
 
+/* (on a checkerboard, so a see-through code's dots show on the dark page too, as in the preview) */
 .recent-picture img {
   width: 52px;
   height: 52px;
   object-fit: contain;
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #cccccc 25%, transparent 25%), linear-gradient(-45deg, #cccccc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #cccccc 75%), linear-gradient(-45deg, transparent 75%, #cccccc 75%);
+  background-position:
+    0 0,
+    0 4px,
+    4px -4px,
+    -4px 0;
+  background-size: 8px 8px;
 }
 
 .recent-picture .icon {
@@ -1401,6 +1442,240 @@ textarea.found-text {
 .link-warnings {
   margin: 0;
   padding-left: 20px;
+}
+
+/* batch export: a file for every row of a CSV, in one zip */
+
+.batch-open {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 12px;
+}
+
+.batch-open .hint {
+  margin: 0;
+}
+
+.batch-dialog {
+  width: min(660px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.batch-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.batch-dialog .small {
+  border: 0;
+}
+
+.batch-what {
+  margin: 0 0 12px;
+}
+
+.batch-choose {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-file-line {
+  margin: 8px 0 0;
+  font-weight: 600;
+  color: var(--strong);
+  overflow-wrap: anywhere;
+}
+
+.batch-file-line:empty {
+  display: none;
+}
+
+.batch-guide-box {
+  margin-top: 10px;
+}
+
+.batch-guide-box > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--strong);
+}
+
+.batch-rows {
+  margin-top: 14px;
+}
+
+.batch-heading {
+  margin: 0;
+  font-weight: 600;
+}
+
+.batch-heading[data-kind='good'],
+.batch-status[data-kind='good'] {
+  color: var(--good);
+}
+
+.batch-heading[data-kind='bad'] {
+  color: var(--bad);
+}
+
+.batch-status[data-kind='warn'] {
+  color: var(--warn);
+}
+
+.batch-list {
+  max-height: 30vh;
+  overflow-y: auto;
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.batch-list:empty {
+  display: none;
+}
+
+.batch-card {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--field);
+}
+
+.batch-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.batch-fields {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.batch-fields dt {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.batch-fields dt:first-child {
+  margin-top: 0;
+}
+
+.batch-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.batch-fields dd.code {
+  font-family: Consolas, 'Courier New', monospace;
+}
+
+.batch-row-problem {
+  margin-top: 6px !important;
+}
+
+/* the row's code on a checkerboard, so a see-through one shows */
+.batch-picture-box {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 150px;
+  border-radius: 4px;
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #cccccc 25%, transparent 25%), linear-gradient(-45deg, #cccccc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #cccccc 75%), linear-gradient(-45deg, transparent 75%, #cccccc 75%);
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-size: 16px 16px;
+}
+
+.batch-picture {
+  max-width: 138px;
+  max-height: 138px;
+  image-rendering: pixelated;
+}
+
+.batch-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.batch-row-number {
+  margin: 0;
+  text-align: center;
+}
+
+.batch-label {
+  margin-top: 16px;
+}
+
+/* (the kinds of file go onto a second line on a narrow phone) */
+.batch-dialog .seg {
+  flex-wrap: wrap;
+}
+
+.batch-text-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.batch-text-options .check-row {
+  margin-top: 0;
+}
+
+.batch-foot {
+  align-items: flex-end;
+}
+
+.batch-outcome {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.batch-status {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.batch-status:empty {
+  display: none;
+}
+
+@media (max-width: 599px) {
+  .batch-card-top {
+    flex-direction: column-reverse;
+    align-items: center;
+  }
+
+  .batch-fields {
+    width: 100%;
+  }
 }
 
 /* ---------- the bottom ---------- */

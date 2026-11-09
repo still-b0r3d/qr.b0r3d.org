@@ -15,6 +15,16 @@ export interface WriteAsk {
 }
 
 /**
+ * Whether a barcode gets its blank margin: always for the 2D codes and ITF-14 (whose box holds it);
+ * for the others as "Include quiet zones (margins)" says, the box being shown only for them. (The
+ * PC app also took the margin off Data Matrix and PDF417 then; its next version does as here.)
+ */
+export const withMargin = (type: BarcodeType, look: Pick<BarcodeLook, 'quietZones'>): boolean => {
+  const format = barcodeFormat(type)
+  return !format.linear || format.keepsQuietZones || look.quietZones
+}
+
+/**
  * The type's own checks on what's typed: the tidied text and what to ask zint for, or the message
  * that says what's wrong. Text in UTF-8, GS1 data in round brackets, Data Matrix square unless
  * rectangles are allowed.
@@ -33,7 +43,7 @@ export function askFor(type: BarcodeType, text: string, look: Pick<BarcodeLook, 
       format: format.writeFormat,
       options,
       addHRT: format.linear && look.showText,
-      addQuietZones: look.quietZones || format.keepsQuietZones
+      addQuietZones: withMargin(type, look)
     }
   }
 }

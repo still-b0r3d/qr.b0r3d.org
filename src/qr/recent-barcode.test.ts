@@ -2,20 +2,22 @@ import { describe, expect, it } from 'vitest'
 import { writeBarcode } from '../test/zint'
 import { askFor, madeFrom } from './barcode-make'
 import { defaultLook, type BarcodeSvg } from './barcode-svg'
-import { barcodeSettings, keptBarcode, newRecentBarcode } from './recent'
+import type { BarcodeType } from './barcodes'
+import { barcodeSettings, keptBarcode, newRecentBarcode, recentName } from './recent'
 
 // A barcode in Recent codes, as today's site keeps one (seen by running it: an EAN-13 saved as a
 // PNG, its record read out of the browser's storage), and its settings taken back.
 
-async function made(text: string): Promise<BarcodeSvg> {
+async function madeAny(type: BarcodeType, text: string): Promise<BarcodeSvg> {
   const look = defaultLook()
-  const asked = askFor('ean13', text, look)
+  const asked = askFor(type, text, look)
   if ('error' in asked) throw new Error(asked.error)
   const w = await writeBarcode(asked.ask.text, { format: asked.ask.format as never, options: asked.ask.options, scale: 1, addHRT: asked.ask.addHRT, addQuietZones: asked.ask.addQuietZones })
-  const m = madeFrom('ean13', w.error ? null : w.svg, w.error || null, look.barHeight)
+  const m = madeFrom(type, w.error ? null : w.svg, w.error || null, look.barHeight)
   if ('error' in m) throw new Error(m.error)
   return m.barcode
 }
+const made = (text: string) => madeAny('ean13', text)
 
 describe('a barcode kept in Recent codes', () => {
   it('as today’s site keeps it: its record, picture and size, and what opens it', async () => {
@@ -50,6 +52,17 @@ describe('a barcode kept in Recent codes', () => {
     const kept = newRecentBarcode('datamatrix', 'a\r\nb', defaultLook(), null, 5)
     expect([kept.record.key, kept.record.title, kept.record.thumbnail, kept.record.size]).toEqual(['barcode:datamatrix:a\r\nb', 'a b', undefined, JSON.stringify(kept.details).length])
     expect(keptBarcode(kept.details)).toEqual({ type: 'datamatrix', text: 'a\r\nb' })
+  })
+
+  it('a Wi-Fi network in a Data Matrix: its name, the padlock and no picture, never its password', async () => {
+    const text = 'WIFI:T:WPA;S:home;P:naps-all-day;;'
+    const kept = newRecentBarcode('datamatrix', text, defaultLook(), await madeAny('datamatrix', text), 9)
+    expect([kept.record.label, kept.record.title, kept.record.sensitive, kept.record.thumbnail]).toEqual(['Data Matrix', 'home', true, undefined])
+    // (what opens it again keeps the text, as a QR code's record does, but the list never shows it)
+    expect(recentName(kept.record)).toBe('Data Matrix: home')
+    // a contact is listed by its name, as a QR code's is
+    const card = 'BEGIN:VCARD\nVERSION:3.0\nN:Cat;Rukus;;;\nFN:Rukus Cat\nEND:VCARD'
+    expect(newRecentBarcode('pdf417', card, defaultLook(), null, 9).record.title).toBe('Rukus Cat')
   })
 
   it('a kind this site doesn’t make, or no text, isn’t opened', () => {

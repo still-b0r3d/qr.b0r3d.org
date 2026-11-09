@@ -90,6 +90,24 @@ export function scannedCode(read: FoundRead, source: string, width: number, heig
   }
 }
 
+/**
+ * The codes with "Make this code again" only for the barcodes zint makes too (as the PC app runs
+ * zint before offering it): `makes` asks zint about a barcode type and its text as the type takes
+ * it, and says null when it couldn't ask (the button then stays).
+ */
+export async function madeAgainChecked(codes: ScannedCode[], makes: (type: BarcodeType, text: string) => Promise<boolean | null>): Promise<ScannedCode[]> {
+  const out: ScannedCode[] = []
+  for (const c of codes) {
+    if (!c.barcode || !c.canMakeAgain) {
+      out.push(c)
+      continue
+    }
+    const can = await makes(c.barcode, barcodeFormat(c.barcode).normalizeRead(c.text))
+    out.push(can === false ? { ...c, canMakeAgain: false } : c)
+  }
+  return out
+}
+
 /** A picture in a batch that gave no code: "No code found", "Couldn't open"... */
 export function problemLine(kind: string, detail: string, source: string): ScannedCode {
   return { text: '', kind, detail, format: '', source, isWebLink: false, canMakeAgain: false, barcode: null, level: null, isProblem: true, x: 0, y: 0, box: null }

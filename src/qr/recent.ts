@@ -140,10 +140,13 @@ export function newRecent(design: QrDesign, savedAt: number): { record: RecentRe
 
 /**
  * A barcode to keep: its type, the text as typed and the settings it was made with, listed by its
- * type's name and the text, with its picture (the barcode drawn as an SVG, one pixel a module).
+ * type's name and a title as a QR code's is (never a Wi-Fi password: a network with one gets the
+ * padlock and no picture), with its picture (the barcode drawn as an SVG, one pixel a module). The
+ * PC app's next version does the same; until then it lists a barcode's whole text.
  */
 export function newRecentBarcode(type: BarcodeType, text: string, look: BarcodeLook, barcode: BarcodeSvg | null, savedAt: number): { record: RecentRecord; details: RecentDetails } {
   const format = barcodeFormat(type)
+  const { title, sensitive } = describeRecent(text)
   const settings: JsonObject = {
     color: look.color,
     background: look.background,
@@ -155,8 +158,8 @@ export function newRecentBarcode(type: BarcodeType, text: string, look: BarcodeL
     quietZones: look.quietZones
   }
   const details: RecentDetails = { kind: 'barcode', type: format.id, data: text, settings }
-  const thumbnail = barcode ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(styledSvg(barcode, look.color, paperOf(look), 1)) : undefined
-  const record: RecentRecord = { v: 1, kind: 'barcode', key: `barcode:${format.id}:${text}`, label: format.label, title: shorten(text), sensitive: false, omitted: [], savedAt, size: 0 }
+  const thumbnail = barcode && !sensitive ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(styledSvg(barcode, look.color, paperOf(look), 1)) : undefined
+  const record: RecentRecord = { v: 1, kind: 'barcode', key: `barcode:${format.id}:${text}`, label: format.label, title, sensitive, omitted: [], savedAt, size: 0 }
   if (thumbnail) record.thumbnail = thumbnail
   record.size = JSON.stringify(details).length + (thumbnail?.length ?? 0)
   return { record, details }

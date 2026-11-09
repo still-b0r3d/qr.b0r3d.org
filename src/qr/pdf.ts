@@ -21,6 +21,39 @@ function n(d: number): string {
   return r === 0 ? '0' : String(r)
 }
 
+/**
+ * The picture in a PDF made here (for reading a file back), on white where it's see-through, four
+ * bytes a pixel; null when it isn't one of ours.
+ */
+export async function readPdfPicture(pdf: Uint8Array): Promise<{ width: number; height: number; data: Uint8ClampedArray } | null> {
+  const text = new TextDecoder('latin1').decode(pdf) // one character a byte
+  const stream = async (colourSpace: string): Promise<{ width: number; height: number; bytes: Uint8Array } | null> => {
+    const image = new RegExp(`/Subtype /Image /Width ([0-9]+) /Height ([0-9]+) /ColorSpace /${colourSpace} [^>]*/Length ([0-9]+) >>\nstream\n`).exec(text)
+    if (!image) return null
+    const start = image.index + image[0].length
+    const length = Number(image[3])
+    if (length < 2 || start + length > pdf.length) return null
+    try {
+      const inflated = new Blob([pdf.slice(start, start + length)]).stream().pipeThrough(new DecompressionStream('deflate'))
+      return { width: Number(image[1]), height: Number(image[2]), bytes: new Uint8Array(await new Response(inflated).arrayBuffer()) }
+    } catch {
+      return null
+    }
+  }
+  const rgb = await stream('DeviceRGB')
+  if (!rgb || rgb.width === 0 || rgb.height === 0 || rgb.bytes.length < rgb.width * rgb.height * 3) return null
+  const alpha = await stream('DeviceGray')
+  const count = rgb.width * rgb.height
+  const withAlpha = alpha !== null && alpha.width === rgb.width && alpha.height === rgb.height && alpha.bytes.length >= count
+  const data = new Uint8ClampedArray(count * 4)
+  for (let i = 0; i < count; i++) {
+    const a = withAlpha ? alpha.bytes[i] : 255
+    for (let c = 0; c < 3; c++) data[i * 4 + c] = Math.floor((rgb.bytes[i * 3 + c] * a + 255 * (255 - a) + 127) / 255)
+    data[i * 4 + 3] = 255
+  }
+  return { width: rgb.width, height: rgb.height, data }
+}
+
 /** A PDF text string: plain ASCII as it is, anything else as UTF-16 with its byte-order mark. */
 export function pdfString(text: string): string {
   let ascii = true
