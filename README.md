@@ -89,12 +89,10 @@ repository's history; none of it is in the new site.
 
 ## Versioning
 
-From the release of the rebuilt site the version is a plain number shared with b0r3d QR for PC: the
-same release of both carries the same number. The footer shows it as `v1.3` (`1.3.0` in
-`package.json`) and the **build** apart from it: the commit the site was built from, filled in by the
-hosting build (a copy built on your own computer says `Build: dev`).
-
-Until then `package.json` keeps the live site's `0.33.0+b0r3d.1.2`.
+Since the rebuilt site (1.3) the version is a plain number shared with b0r3d QR for PC: the same
+release of both carries the same number. The footer shows it as `v1.3` (`1.3.0` in `package.json`)
+and the **build** apart from it: the commit the site was built from, filled in by the hosting build
+(a copy built on your own computer says `Build: dev`).
 
 | Version            | Date       | What changed                                                   |
 | ------------------ | ---------- | -------------------------------------------------------------- |
@@ -111,6 +109,7 @@ Until then `package.json` keeps the live site's `0.33.0+b0r3d.1.2`.
 | `0.33.0+b0r3d.1.0` | 2026-10-09 | 1.0: review fixes (UTF-8 marker, PDF, ITF-14, ISBN, barcode batches, camera switch) |
 | `0.33.0+b0r3d.1.1` | 2026-10-15 | The new b0r3d cup: logo, cup preset, favicon, app icons, splash screens and share image |
 | `0.33.0+b0r3d.1.2` | 2026-11-01 | ZXing-C++ update (zxing-wasm 3.1.6): scanning fixes; the codes it makes are unchanged |
+| `1.3`              | 2026-11-08 | The site rebuilt on b0r3d's own code, MIT + Commons Clause; same number as b0r3d QR for PC 1.3 |
 
 ## Development
 
