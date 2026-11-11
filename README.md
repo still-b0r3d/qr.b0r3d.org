@@ -110,6 +110,7 @@ and the **build** apart from it: the commit the site was built from, filled in b
 | `0.33.0+b0r3d.1.1` | 2026-10-15 | The new b0r3d cup: logo, cup preset, favicon, app icons, splash screens and share image |
 | `0.33.0+b0r3d.1.2` | 2026-11-01 | ZXing-C++ update (zxing-wasm 3.1.6): scanning fixes; the codes it makes are unchanged |
 | `1.3`              | 2026-11-08 | The site rebuilt on b0r3d's own code, MIT + Commons Clause; same number as b0r3d QR for PC 1.3 |
+| `1.3.1`            | 2026-11-11 | Same number as b0r3d QR for PC 1.3.1 (its fixes); the site itself is unchanged |
 
 ## Development
 
