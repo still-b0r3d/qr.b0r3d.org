@@ -27,7 +27,7 @@ What's there so far:
 
 - QR codes made exactly as before: the same text, level and size give the same modules as this
   site always made, and as the PC app makes (its tests carry 100 codes made by the earlier site).
-- The designer: presets (Plain, Rounded, Dots, b0r3d Cup, Rukus) and Randomize; dot, corner square
+- The designer: presets (Plain, Rounded, Dots, b0r3d Cup, Ruckus) and Randomize; dot, corner square
   and corner dot shapes and colours; a background or none; rounded corners; a logo from a file, the
   clipboard, a drop or a web address, with its size and the space around it; a frame with a caption
   on any side, its colours, picture, lengths and one of 23 fonts; error correction, the size of the

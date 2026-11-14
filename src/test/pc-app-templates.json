@@ -10558,7 +10558,7 @@
                                        "text":  ""
                                    },
                       "example":  {
-                                      "text":  "Rukus was here."
+                                      "text":  "Ruckus was here."
                                   },
                       "clearsWhenFilled":  [
                                                true
@@ -10753,7 +10753,7 @@
                                    },
                       "example":  {
                                       "phone":  "+1-202-555-0100",
-                                      "message":  "Dinner at six? Rukus says yes."
+                                      "message":  "Dinner at six? Ruckus says yes."
                                   },
                       "clearsWhenFilled":  [
                                                true,
@@ -10885,7 +10885,7 @@
                                          "name":  "firstName",
                                          "label":  "First Name",
                                          "kind":  "Line",
-                                         "placeholder":  "Rukus",
+                                         "placeholder":  "Ruckus",
                                          "hint":  null,
                                          "maxLength":  0,
                                          "choices":  [
@@ -11082,7 +11082,7 @@
                                        "country":  ""
                                    },
                       "example":  {
-                                      "firstName":  "Rukus",
+                                      "firstName":  "Ruckus",
                                       "lastName":  "Cat",
                                       "org":  "b0r3d.org",
                                       "position":  "Chief napper",
@@ -11266,7 +11266,7 @@
                                          "name":  "name",
                                          "label":  "Beneficiary Name",
                                          "kind":  "Line",
-                                         "placeholder":  "Rukus Cat",
+                                         "placeholder":  "Ruckus Cat",
                                          "hint":  null,
                                          "maxLength":  70,
                                          "choices":  [
@@ -11380,7 +11380,7 @@
                                    },
                       "example":  {
                                       "version":  "002",
-                                      "name":  "Rukus Cat",
+                                      "name":  "Ruckus Cat",
                                       "iban":  "DE89 3704 0044 0532 0130 00",
                                       "bic":  "COBADEFFXXX",
                                       "amount":  "12.50",

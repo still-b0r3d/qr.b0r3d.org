@@ -61,8 +61,8 @@ describe('a barcode kept in Recent codes', () => {
     // (what opens it again keeps the text, as a QR code's record does, but the list never shows it)
     expect(recentName(kept.record)).toBe('Data Matrix: home')
     // a contact is listed by its name, as a QR code's is
-    const card = 'BEGIN:VCARD\nVERSION:3.0\nN:Cat;Rukus;;;\nFN:Rukus Cat\nEND:VCARD'
-    expect(newRecentBarcode('pdf417', card, defaultLook(), null, 9).record.title).toBe('Rukus Cat')
+    const card = 'BEGIN:VCARD\nVERSION:3.0\nN:Cat;Ruckus;;;\nFN:Ruckus Cat\nEND:VCARD'
+    expect(newRecentBarcode('pdf417', card, defaultLook(), null, 9).record.title).toBe('Ruckus Cat')
   })
 
   it('a kind this site doesn’t make, or no text, isn’t opened', () => {

@@ -51,12 +51,12 @@ async function readPdf(bytes: Buffer): Promise<string | null> {
 test.describe('the designer', () => {
   test.skip(({ isMobile }) => isMobile, 'the desktop layout')
 
-  test('every preset scans, and the cup and Rukus carry their logos', async ({ page }) => {
+  test('every preset scans, and the cup and Ruckus carry their logos', async ({ page }) => {
     await openPage(page)
-    for (const name of ['Rounded', 'Dots', 'b0r3d Cup', 'Rukus', 'Plain']) {
+    for (const name of ['Rounded', 'Dots', 'b0r3d Cup', 'Ruckus', 'Plain']) {
       await page.locator('#preset').selectOption(name)
       expect(await checked(page), name).toBe('ok')
-      if (name === 'b0r3d Cup' || name === 'Rukus') {
+      if (name === 'b0r3d Cup' || name === 'Ruckus') {
         await expect(page.getByTestId('info')).toContainText('level H')
         const svg = (await saved(page, 'svg')).bytes.toString('utf8')
         expect(svg).toContain('class="qr-logo"')

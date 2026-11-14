@@ -94,7 +94,7 @@ test.describe('data templates', () => {
 
     // a payment: the IBAN's check digits, an amount it can't carry, the BIC for version 1
     await choose(page, 'epc')
-    await d.getByLabel('Beneficiary Name').fill('Rukus Cat')
+    await d.getByLabel('Beneficiary Name').fill('Ruckus Cat')
     await d.getByLabel('IBAN').fill('DE89 3704 0044 0532 0130 01')
     await expect(d.locator('[data-problem=iban]')).toHaveText("This IBAN's check digits don't match. Check it for a typo.")
     await d.getByLabel('Amount (EUR)').fill('1.234,56')
@@ -111,7 +111,7 @@ test.describe('data templates', () => {
     await d.getByLabel('Structured Creditor Reference').fill('RF76B0R3D')
     await expect(d.getByLabel('Payment Reference')).toBeDisabled()
     await save(page)
-    await expect(page.locator('#data')).toHaveValue('BCD\n002\n1\nSCT\n\nRukus Cat\nDE89370400440532013000\nEUR12.50\n\nRF76B0R3D')
+    await expect(page.locator('#data')).toHaveValue('BCD\n002\n1\nSCT\n\nRuckus Cat\nDE89370400440532013000\nEUR12.50\n\nRF76B0R3D')
   })
 
   test('the form fills from the text when it’s that template, and keeps each form while the page is open', async ({ page }) => {
@@ -148,12 +148,12 @@ test.describe('data templates', () => {
 
   test('a contact card’s fields go two to a row, and its text reads back into them', async ({ page }) => {
     await openPage(page)
-    await typeData(page, 'BEGIN:VCARD\nVERSION:4.0\nN:Cat;Rukus;;;\nFN:Rukus Cat\nTEL;TYPE=cell,voice;VALUE=uri:tel:+1 202 555 0199\nEND:VCARD')
+    await typeData(page, 'BEGIN:VCARD\nVERSION:4.0\nN:Cat;Ruckus;;;\nFN:Ruckus Cat\nTEL;TYPE=cell,voice;VALUE=uri:tel:+1 202 555 0199\nEND:VCARD')
     await expect(page.getByTestId('template-picker')).toHaveText('vCard')
     await page.getByTestId('edit-template').click()
     const d = dialog(page)
     await expect(d.getByLabel('vCard Version')).toHaveValue('4')
-    await expect(d.getByLabel('First Name')).toHaveValue('Rukus')
+    await expect(d.getByLabel('First Name')).toHaveValue('Ruckus')
     await expect(d.getByLabel('Phone (Mobile)')).toHaveValue('+1 202 555 0199')
     const first = await d.getByLabel('First Name').boundingBox()
     const last = await d.getByLabel('Last Name').boundingBox()

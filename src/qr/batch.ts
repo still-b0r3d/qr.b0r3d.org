@@ -423,7 +423,7 @@ export const QR_EXAMPLE =
 
 export const CONTACTS_EXAMPLE =
   'firstName,lastName,org,position,phoneWork,phonePrivate,phoneMobile,email,website,street,zipcode,city,state,country,version,frameText,fileName,frameFontFamily\r\n' +
-  'Rukus,Cat,b0r3d.org,Chief napper,+1 555 0100,,+1 555 0199,rukus@example.com,https://b0r3d.org,1 Loaf Lane,12345,Breadville,CA,USA,3.0,Call Rukus,rukus_card,Poppins\r\n' +
+  'Ruckus,Cat,b0r3d.org,Chief napper,+1 555 0100,,+1 555 0199,rukus@example.com,https://b0r3d.org,1 Loaf Lane,12345,Breadville,CA,USA,3.0,Call Ruckus,rukus_card,Poppins\r\n' +
   'Ann,Lee,Example Co,Designer,,,+1 555 0123,ann@example.com,,,,,,,,Ann Lee,ann_lee,\r\n'
 
 const quoted = (value: string): string => (/[,";\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value)

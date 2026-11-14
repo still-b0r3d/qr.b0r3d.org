@@ -151,11 +151,11 @@ test.describe('batch export', () => {
     const [example] = await Promise.all([page.waitForEvent('download'), page.getByTestId('batch-contacts-example').click()])
     expect(example.suggestedFilename()).toBe('batch-example-contacts.csv')
     await chooseCsv(page, (await bytesOf(example)).toString('utf8'), 'contacts.csv')
-    await expect(page.getByTestId('batch-row')).toContainText('NameRukus CatCompanyb0r3d.org · Chief napperEmailrukus@example.comPhone+1 555 0100 · +1 555 0199')
+    await expect(page.getByTestId('batch-row')).toContainText('NameRuckus CatCompanyb0r3d.org · Chief napperEmailrukus@example.comPhone+1 555 0100 · +1 555 0199')
     await dialog(page).getByRole('button', { name: 'SVG' }).click()
     const zip = await makeZip(page)
     expect([...zip.files.keys()]).toEqual(['rukus_card.svg', 'ann_lee.svg'])
-    expect(zip.files.get('rukus_card.svg')!.toString('utf8')).toContain('Call Rukus')
+    expect(zip.files.get('rukus_card.svg')!.toString('utf8')).toContain('Call Ruckus')
     await expect(status(page)).toHaveText('Made 2 files in qr-codes.zip, each read back and scanned.')
   })
 

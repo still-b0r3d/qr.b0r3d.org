@@ -113,7 +113,7 @@ export function newFrame(): QrFrame {
 
 // ---------- presets ----------
 
-export const PRESET_NAMES = ['Plain', 'Rounded', 'Dots', 'b0r3d Cup', 'Rukus'] as const
+export const PRESET_NAMES = ['Plain', 'Rounded', 'Dots', 'b0r3d Cup', 'Ruckus'] as const
 export type PresetName = (typeof PRESET_NAMES)[number]
 
 /** The shape names, in the order they're offered. */
@@ -159,7 +159,7 @@ export function applyPreset(name: string, design: QrDesign): QrDesign {
       d.level = 'H'
       d.logo = PRESET_LOGOS.cup
       break
-    case 'Rukus':
+    case 'Ruckus':
       look(d, 'rounded', '#2b2b2b', 'extra-rounded', '#2b2b2b', 'dot', '#c0396b')
       d.level = 'H'
       d.logo = PRESET_LOGOS.rukus

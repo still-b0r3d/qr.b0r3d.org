@@ -114,12 +114,12 @@ test.describe('Recent codes', () => {
     // the same text again replaces it (with a new id); a second code gets no note
     await savePng(page)
     await expect.poll(async () => (await kept(page)).codes.map((c) => c.id)).toEqual([2])
-    await typeData(page, 'Rukus was here.')
+    await typeData(page, 'Ruckus was here.')
     await page.getByTestId('save-design').click()
     k = await codesKept(page, 2)
     expect(k.codes.map((c) => [c.label, c.title])).toEqual([
       ['URL', 'https://b0r3d.org/recent-check'],
-      ['Text', 'Rukus was here.']
+      ['Text', 'Ruckus was here.']
     ])
     await expect(note).toBeHidden()
     // the text export isn't a code to keep

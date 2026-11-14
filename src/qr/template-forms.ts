@@ -128,7 +128,7 @@ export function templateFields(kind: TemplateKind): TemplateField[] {
           ],
           true
         ),
-        f('firstName', 'First Name', 'Rukus'),
+        f('firstName', 'First Name', 'Ruckus'),
         f('lastName', 'Last Name', 'Cat'),
         f('org', 'Organization', 'b0r3d.org'),
         f('position', 'Position', 'Chief napper'),
@@ -169,7 +169,7 @@ export function templateFields(kind: TemplateKind): TemplateField[] {
           ['002', 'Version 2 (the BIC can be left out)'],
           ['001', 'Version 1 (the BIC is needed)']
         ]),
-        f('name', 'Beneficiary Name', 'Rukus Cat', 'line', 70),
+        f('name', 'Beneficiary Name', 'Ruckus Cat', 'line', 70),
         // the example IBAN banks' own documents use, and the BIC of its bank
         f('iban', 'IBAN', 'DE89 3704 0044 0532 0130 00', 'line', 34),
         f('bic', 'BIC', 'COBADEFFXXX', 'line', 11),
@@ -329,13 +329,13 @@ export function templateExample(kind: TemplateKind, now: Date = new Date()): Fie
     case 'phone':
       return { phone: '+1-202-555-0100' }
     case 'sms':
-      return { phone: '+1-202-555-0100', message: 'Dinner at six? Rukus says yes.' }
+      return { phone: '+1-202-555-0100', message: 'Dinner at six? Ruckus says yes.' }
     case 'wifi':
       return { encryption: 'WPA', ssid: 'b0r3d guest', password: 'naps-all-day', hidden: 'false' }
     case 'vcard':
       // the contact in the batch example, with whole phone numbers
       return {
-        firstName: 'Rukus',
+        firstName: 'Ruckus',
         lastName: 'Cat',
         org: 'b0r3d.org',
         position: 'Chief napper',
@@ -366,7 +366,7 @@ export function templateExample(kind: TemplateKind, now: Date = new Date()): Fie
     case 'epc':
       return {
         version: '002',
-        name: 'Rukus Cat',
+        name: 'Ruckus Cat',
         iban: 'DE89 3704 0044 0532 0130 00',
         bic: 'COBADEFFXXX',
         amount: '12.50',
@@ -376,7 +376,7 @@ export function templateExample(kind: TemplateKind, now: Date = new Date()): Fie
         originatorInfo: ''
       }
     default:
-      return { text: 'Rukus was here.' }
+      return { text: 'Ruckus was here.' }
   }
 }
 

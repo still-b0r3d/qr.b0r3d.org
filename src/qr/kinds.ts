@@ -166,7 +166,7 @@ function fields(text: string): Map<string, string> {
   return found
 }
 
-/** the value of a vCard or iCalendar line ("FN:Rukus", "SUMMARY;LANGUAGE=en:Party") */
+/** the value of a vCard or iCalendar line ("FN:Ruckus", "SUMMARY;LANGUAGE=en:Party") */
 function line(text: string, name: string): string | null {
   const m = new RegExp(`^${name}(?:;[^:\\r\\n]*)?:(.*)$`, 'im').exec(text)
   return m ? trimmedText(m[1]) : null
